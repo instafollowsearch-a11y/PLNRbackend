@@ -1,0 +1,41 @@
+{
+  "city": "Austin",
+  "events": [
+    {
+      "id": "austin-jazz-001",
+      "title": "Harbor Jazz Night",
+      "description": "Live jazz on the waterfront with local food trucks.",
+      "venue_name": "Harbor Jazz Club",
+      "starts_at": "2026-06-14T20:00:00-05:00",
+      "ends_at": "2026-06-14T23:30:00-05:00",
+      "url": "https://example.com/events/harbor-jazz",
+      "image_url": "https://example.com/images/harbor-jazz.jpg",
+      "price_min": 25,
+      "price_max": 45
+    },
+    {
+      "id": "austin-tacos-002",
+      "title": "Taco Row Festival",
+      "description": "Sample tacos from Austin's best vendors.",
+      "venue_name": "Taco Row",
+      "starts_at": "2026-06-15T17:00:00-05:00",
+      "ends_at": "2026-06-15T22:00:00-05:00",
+      "url": "https://example.com/events/taco-row",
+      "image_url": null,
+      "price_min": 15,
+      "price_max": 35
+    },
+    {
+      "id": "austin-rooftop-003",
+      "title": "Skyline Sunset Sessions",
+      "description": "Rooftop cocktails and DJ sets at golden hour.",
+      "venue_name": "Skyline Lounge",
+      "starts_at": "2026-06-20T18:30:00-05:00",
+      "ends_at": "2026-06-20T23:00:00-05:00",
+      "url": "https://example.com/events/skyline-sunset",
+      "image_url": "https://example.com/images/skyline.jpg",
+      "price_min": 30,
+      "price_max": 60
+    }
+  ]
+}

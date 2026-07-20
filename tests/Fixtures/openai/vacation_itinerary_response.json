@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-vacation-itinerary",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"title\":\"7 Days in Barcelona\",\"summary\":\"Culture and food focused week for two.\",\"days\":[{\"date\":\"Day 1\",\"theme\":\"Arrival & explore\",\"stops\":[{\"time\":\"15:00\",\"name\":\"Gothic Quarter\",\"activity\":\"Walking tour\",\"notes\":\"Check into hotel first.\"}]},{\"date\":\"Day 2\",\"theme\":\"Gaudi day\",\"stops\":[{\"time\":\"10:00\",\"name\":\"Sagrada Familia\",\"activity\":\"Guided visit\",\"notes\":\"Pre-book tickets.\"}]}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

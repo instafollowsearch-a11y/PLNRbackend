@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "event_id": "ae-001",
+      "eventname": "Austin Food Festival",
+      "description": "Taste the best local food.",
+      "location": "Palmer Events Center",
+      "start_time": "2026-06-19 17:00:00",
+      "end_time": "2026-06-19 22:00:00",
+      "event_url": "https://allevents.in/e/austin-food-festival",
+      "banner_url": "https://example.com/ae-banner.jpg",
+      "ticket_price": "25"
+    }
+  ]
+}

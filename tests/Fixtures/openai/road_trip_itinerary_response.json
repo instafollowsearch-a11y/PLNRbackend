@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-road-trip-itinerary",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"title\":\"Austin to Dallas Road Trip\",\"summary\":\"Scenic drive with two stops and dinner.\",\"stops\":[{\"time\":\"08:00\",\"name\":\"Depart Austin\",\"activity\":\"Start drive\",\"notes\":\"Fill up gas.\"},{\"time\":\"11:00\",\"name\":\"Bluebonnet Viewpoint\",\"activity\":\"Photo stop\",\"notes\":\"45 min break.\"},{\"time\":\"13:30\",\"name\":\"Hill Country BBQ\",\"activity\":\"Lunch\",\"notes\":\"Try the brisket.\"},{\"time\":\"16:00\",\"name\":\"Arrive Dallas\",\"activity\":\"Check in\",\"notes\":\"Hotel downtown.\"}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "city": "Austin",
+  "events": [
+    {
+      "id": "groupon-food-tour-001",
+      "title": "Austin Food Tour for Two",
+      "description": "Guided tasting tour through downtown Austin eateries.",
+      "venue_name": "Congress Avenue",
+      "starts_at": "2026-06-20T11:00:00-05:00",
+      "ends_at": "2026-06-20T14:00:00-05:00",
+      "url": "https://www.groupon.com/deals/austin-food-tour",
+      "image_url": null,
+      "price_min": 49,
+      "price_max": 79
+    },
+    {
+      "id": "groupon-kayak-002",
+      "title": "Lady Bird Lake Kayak Rental",
+      "description": "Two-hour kayak rental with gear included.",
+      "venue_name": "Lady Bird Lake",
+      "starts_at": "2026-06-22T09:00:00-05:00",
+      "ends_at": "2026-06-22T17:00:00-05:00",
+      "url": "https://www.groupon.com/deals/lady-bird-kayak",
+      "image_url": null,
+      "price_min": 25,
+      "price_max": 45
+    }
+  ]
+}

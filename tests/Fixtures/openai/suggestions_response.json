@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-test",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"suggestions\":[{\"name\":\"Jazz and Bites\",\"description\":\"Cocktails, live jazz, and late-night tacos.\",\"estimated_cost_per_person\":65,\"time_slot\":\"8:00 PM – 12:30 AM\",\"venues\":[\"Blue Note Bar\",\"Harbor Jazz Club\",\"Taco Row\"]},{\"name\":\"Rooftop Sunset\",\"description\":\"Rooftop drinks followed by a comedy show.\",\"estimated_cost_per_person\":55,\"time_slot\":\"6:30 PM – 11:00 PM\",\"venues\":[\"Skyline Lounge\",\"Laugh Factory\"]},{\"name\":\"Food Hall Hop\",\"description\":\"Sample multiple cuisines across the city.\",\"estimated_cost_per_person\":45,\"time_slot\":\"7:00 PM – 10:30 PM\",\"venues\":[\"Market Hall\",\"Riverside Eats\"]}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

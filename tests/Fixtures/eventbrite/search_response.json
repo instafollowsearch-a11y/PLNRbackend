@@ -1,0 +1,14 @@
+{
+  "events": [
+    {
+      "id": "123456789",
+      "name": { "text": "Live Music Showcase" },
+      "description": { "text": "An evening of local bands." },
+      "url": "https://www.eventbrite.com/e/123456789",
+      "start": { "utc": "2026-06-20T01:00:00Z" },
+      "end": { "utc": "2026-06-20T04:00:00Z" },
+      "logo": { "url": "https://example.com/logo.jpg" },
+      "venue": { "name": "Downtown Music Hall" }
+    }
+  ]
+}

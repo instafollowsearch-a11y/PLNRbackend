@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-test-itinerary",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"title\":\"Saturday Night Out in Austin\",\"summary\":\"3-stop evening for 4 people, about $65 per person.\",\"stops\":[{\"time\":\"19:30\",\"name\":\"Blue Note Bar\",\"activity\":\"Cocktails\",\"notes\":\"Arrive early for seating.\"},{\"time\":\"21:00\",\"name\":\"Harbor Jazz Club\",\"activity\":\"Live jazz set\",\"notes\":\"Cover charge included in budget.\"},{\"time\":\"22:30\",\"name\":\"Taco Row\",\"activity\":\"Late-night tacos\",\"notes\":\"Walkable from the jazz club.\"}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

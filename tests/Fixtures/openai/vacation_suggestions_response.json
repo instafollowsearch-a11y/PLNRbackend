@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-vacation",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"suggestions\":[{\"name\":\"Culture & Food Week\",\"description\":\"Museums, tapas tours, and local markets.\",\"estimated_cost_total\":2800,\"highlights\":[\"Sagrada Familia\",\"Gothic Quarter\",\"Beach day\"]},{\"name\":\"Beach & Relax Mix\",\"description\":\"Coastal days with light sightseeing.\",\"estimated_cost_total\":2400,\"highlights\":[\"Barceloneta Beach\",\"Sunset cruise\"]},{\"name\":\"Active Explorer\",\"description\":\"Hiking, biking, and day trips.\",\"estimated_cost_total\":3100,\"highlights\":[\"Montserrat hike\",\"Coastal bike path\"]}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

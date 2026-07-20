@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-date-night-itinerary",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"title\":\"Romantic Saturday in Austin\",\"summary\":\"Full-day date with art, wine, and live jazz for two.\",\"stops\":[{\"time\":\"10:00\",\"name\":\"Modern Art Museum\",\"activity\":\"Gallery visit\",\"notes\":\"Book tickets online.\"},{\"time\":\"14:00\",\"name\":\"Vineyard Cellar\",\"activity\":\"Wine tasting\",\"notes\":\"Reserve a table.\"},{\"time\":\"19:30\",\"name\":\"Blue Room Jazz\",\"activity\":\"Dinner and live music\",\"notes\":\"Dress smart casual.\"}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

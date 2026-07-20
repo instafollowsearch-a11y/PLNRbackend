@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-date-night",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"suggestions\":[{\"name\":\"Art & Wine Day\",\"description\":\"Gallery morning, wine bar afternoon, jazz dinner.\",\"estimated_cost\":180,\"time_slot\":\"10:00 AM – 10:00 PM\",\"venues\":[\"Modern Art Museum\",\"Vineyard Cellar\",\"Blue Room Jazz\"]},{\"name\":\"Park Picnic Romance\",\"description\":\"Botanical garden stroll and sunset picnic.\",\"estimated_cost\":95,\"time_slot\":\"11:00 AM – 8:00 PM\",\"venues\":[\"City Botanical Garden\",\"Riverside Park\"]},{\"name\":\"Chef's Table Evening\",\"description\":\"Cooking class and private chef dinner.\",\"estimated_cost\":250,\"time_slot\":\"2:00 PM – 9:30 PM\",\"venues\":[\"Culinary Studio\",\"Harbor Table\"]}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

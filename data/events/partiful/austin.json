@@ -1,0 +1,29 @@
+{
+  "city": "Austin",
+  "events": [
+    {
+      "id": "partiful-rooftop-001",
+      "title": "Rooftop Day Party",
+      "description": "Poolside vibes with DJs and mocktails.",
+      "venue_name": "East Side Loft",
+      "starts_at": "2026-06-16T14:00:00-05:00",
+      "ends_at": "2026-06-16T20:00:00-05:00",
+      "url": "https://partiful.com/e/rooftop-day-party",
+      "image_url": null,
+      "price_min": 0,
+      "price_max": 20
+    },
+    {
+      "id": "partiful-game-002",
+      "title": "Game Night Social",
+      "description": "Board games, snacks, and new friends.",
+      "venue_name": "Community House",
+      "starts_at": "2026-06-18T19:00:00-05:00",
+      "ends_at": "2026-06-18T23:00:00-05:00",
+      "url": "https://partiful.com/e/game-night",
+      "image_url": null,
+      "price_min": 0,
+      "price_max": 0
+    }
+  ]
+}

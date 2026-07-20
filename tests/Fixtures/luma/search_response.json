@@ -1,0 +1,19 @@
+{
+  "entries": [
+    {
+      "api_id": "luma-evt-001",
+      "event": {
+        "name": "Design Meetup Austin",
+        "description": "Monthly design community gathering.",
+        "geo_address_info": {
+          "city": "Austin",
+          "address": "Creative Hub"
+        },
+        "start_at": "2026-06-17T18:00:00Z",
+        "end_at": "2026-06-17T21:00:00Z",
+        "url": "https://lu.ma/design-meetup",
+        "cover_url": "https://example.com/luma-cover.jpg"
+      }
+    }
+  ]
+}

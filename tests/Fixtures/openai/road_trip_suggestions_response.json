@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-road-trip",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"suggestions\":[{\"name\":\"Scenic Route via Hill Country\",\"description\":\"Bluebonnet viewpoints and BBQ stops.\",\"estimated_gas_cost\":85,\"estimated_food_cost\":120,\"total_drive_time\":\"6h 30m\",\"stops\":[{\"name\":\"Bluebonnet Viewpoint\",\"closing_time\":\"sunset\",\"duration\":\"45 min\"},{\"name\":\"Hill Country BBQ\",\"closing_time\":\"9:00 PM\",\"duration\":\"1 hour\"}]},{\"name\":\"Direct Highway Run\",\"description\":\"Fastest route with one meal break.\",\"estimated_gas_cost\":65,\"estimated_food_cost\":60,\"total_drive_time\":\"5h 15m\",\"stops\":[{\"name\":\"Rest Area Cafe\",\"closing_time\":\"8:00 PM\",\"duration\":\"30 min\"}]}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

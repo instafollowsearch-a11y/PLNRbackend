@@ -1,0 +1,29 @@
+{
+  "city": "Barcelona",
+  "events": [
+    {
+      "id": "bcn-sagrada-001",
+      "title": "Gaudi After Hours",
+      "description": "Evening access to Sagrada Familia with guided tour.",
+      "venue_name": "Sagrada Familia",
+      "starts_at": "2026-06-12T19:00:00+02:00",
+      "ends_at": "2026-06-12T22:00:00+02:00",
+      "url": "https://example.com/events/gaudi-after-hours",
+      "image_url": "https://example.com/images/sagrada.jpg",
+      "price_min": 40,
+      "price_max": 65
+    },
+    {
+      "id": "bcn-tapas-002",
+      "title": "Gothic Quarter Tapas Walk",
+      "description": "Guided tapas crawl through the Gothic Quarter.",
+      "venue_name": "Gothic Quarter",
+      "starts_at": "2026-06-18T18:00:00+02:00",
+      "ends_at": "2026-06-18T21:30:00+02:00",
+      "url": "https://example.com/events/tapas-walk",
+      "image_url": null,
+      "price_min": 55,
+      "price_max": 85
+    }
+  ]
+}
