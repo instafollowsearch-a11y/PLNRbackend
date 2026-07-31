@@ -2,12 +2,17 @@
 
 namespace App\Services\AI;
 
+use App\Services\Settings\AppSettings;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class AnthropicClient implements AiChatClient
 {
+    public function __construct(
+        private readonly AppSettings $settings,
+    ) {}
+
     /**
      * @param  array<int, array{role: string, content: string}>  $messages
      * @return array<string, mixed>
@@ -19,7 +24,7 @@ class AnthropicClient implements AiChatClient
             set_time_limit(180);
         }
 
-        $apiKey = config('services.anthropic.key');
+        $apiKey = $this->settings->anthropicApiKey();
 
         if (empty($apiKey)) {
             throw new RuntimeException('Anthropic API key is not configured.');
@@ -47,7 +52,7 @@ class AnthropicClient implements AiChatClient
         }
 
         $payload = [
-            'model' => config('services.anthropic.model'),
+            'model' => $this->settings->anthropicModel(),
             'max_tokens' => 4096,
             'messages' => $anthropicMessages,
             'temperature' => 0.7,
@@ -66,7 +71,7 @@ class AnthropicClient implements AiChatClient
                 'content-type' => 'application/json',
             ])
                 ->timeout(90)
-                ->post(config('services.anthropic.url'), $payload)
+                ->post($this->settings->anthropicUrl(), $payload)
                 ->throw();
         } catch (RequestException $exception) {
             throw new RuntimeException(

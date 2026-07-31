@@ -58,4 +58,61 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
             'Payload: '.json_encode($payload),
         ]);
     }
+
+    /**
+     * @param  array<string, mixed>  $stop
+     * @return array<string, mixed>
+     */
+    protected function normalizeStop(array $stop): array
+    {
+        $normalized = [
+            'time' => (string) ($stop['time'] ?? ''),
+            'name' => (string) ($stop['name'] ?? ''),
+            'activity' => (string) ($stop['activity'] ?? ''),
+            'notes' => (string) ($stop['notes'] ?? ''),
+        ];
+
+        $venueUrl = $this->sanitizeHttpsUrl(
+            $stop['venue_url'] ?? $stop['url'] ?? $stop['booking_url'] ?? null,
+        );
+        $mapsUrl = $this->sanitizeHttpsUrl($stop['maps_url'] ?? null);
+        $externalUrl = $this->sanitizeHttpsUrl(
+            $stop['external_url'] ?? $stop['link'] ?? $stop['website'] ?? null,
+        );
+
+        if ($venueUrl !== null) {
+            $normalized['venue_url'] = $venueUrl;
+        }
+
+        if ($mapsUrl !== null) {
+            $normalized['maps_url'] = $mapsUrl;
+        }
+
+        if ($externalUrl !== null) {
+            $normalized['external_url'] = $externalUrl;
+        }
+
+        return $normalized;
+    }
+
+    protected function sanitizeHttpsUrl(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $url = trim($value);
+
+        if ($url === '' || filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+        if ($scheme !== 'https') {
+            return null;
+        }
+
+        return $url;
+    }
 }

@@ -40,7 +40,7 @@ class BookingFulfillmentService
 
     public function notifyOps(Booking $booking): void
     {
-        $email = (string) config('services.booking.ops_email');
+        $email = (string) (app(\App\Services\Settings\AppSettings::class)->bookingOpsEmail() ?? '');
 
         if ($email === '') {
             return;

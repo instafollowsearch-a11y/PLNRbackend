@@ -36,7 +36,7 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return 'You are a romantic date itinerary planner. Return only valid JSON with keys: title (string), summary (string), stops (array of objects with time, name, activity, notes). Include enough stops to cover the requested number of events throughout the day.';
+        return 'You are a romantic date itinerary planner. Return only valid JSON with keys: title (string), summary (string), stops (array of objects with time, name, activity, notes, and optional venue_url / maps_url https links when a real venue page or maps link is known). Include enough stops to cover the requested number of events throughout the day.';
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string
@@ -78,12 +78,7 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
                 continue;
             }
 
-            $stops[] = [
-                'time' => (string) ($stop['time'] ?? ''),
-                'name' => (string) ($stop['name'] ?? ''),
-                'activity' => (string) ($stop['activity'] ?? ''),
-                'notes' => (string) ($stop['notes'] ?? ''),
-            ];
+            $stops[] = $this->normalizeStop($stop);
         }
 
         if ($stops === []) {

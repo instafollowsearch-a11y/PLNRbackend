@@ -31,6 +31,7 @@ class PlanSession extends Model
     protected $fillable = [
         'uuid',
         'user_id',
+        'creator_ip',
         'plan_type_id',
         'status',
         'city',

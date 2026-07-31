@@ -17,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->throttleApi();
         $middleware->alias([
             'plan.session' => \App\Http\Middleware\EnsurePlanSessionAccess::class,
+            'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
+            'auth.optional' => \App\Http\Middleware\OptionalSanctumAuth::class,
         ]);
         $middleware->validateCsrfTokens(except: [
             'api/v1/stripe/webhook',

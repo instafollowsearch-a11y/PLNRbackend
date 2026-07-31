@@ -59,7 +59,9 @@ class AppServiceProvider extends ServiceProvider
                 ? $session->uuid
                 : (string) $request->route('planSession');
 
-            return Limit::perHour((int) config('rate_limiting.ai_per_hour'))
+            $aiPerHour = app(\App\Services\Settings\AppSettings::class)->rateLimitAiPerHour();
+
+            return Limit::perHour($aiPerHour)
                 ->by($request->ip().':'.$sessionKey);
         });
 

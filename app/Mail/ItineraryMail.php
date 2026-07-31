@@ -23,6 +23,18 @@ class ItineraryMail extends Mailable
     public function envelope(): Envelope
     {
         $title = $this->itinerary->content['title'] ?? 'Your PLNR Itinerary';
+        $settings = app(\App\Services\Settings\AppSettings::class);
+        $fromAddress = $settings->mailFromAddress();
+
+        if ($fromAddress) {
+            return new Envelope(
+                subject: $title,
+                from: new \Illuminate\Mail\Mailables\Address(
+                    $fromAddress,
+                    $settings->mailFromName() ?? (string) config('mail.from.name'),
+                ),
+            );
+        }
 
         return new Envelope(
             subject: $title,

@@ -16,10 +16,13 @@ use App\Models\PlanType;
 use App\Models\Suggestion;
 use App\Services\AI\ItineraryService;
 use App\Services\AI\SuggestionService;
+use App\Services\Plans\PlanQuotaService;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -27,14 +30,42 @@ class PlanSessionController extends Controller
 {
     public function __construct(
         private readonly ScheduleItineraryStopReminders $scheduleStopReminders,
+        private readonly PlanQuotaService $planQuota,
     ) {}
+
+    public function index(Request $request): JsonResponse
+    {
+        $perPage = min(50, max(1, $request->integer('per_page', 20)));
+
+        $paginator = $request->user()
+            ->planSessions()
+            ->with(['planType', 'itinerary'])
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        return response()->json([
+            'data' => [
+                'plan_sessions' => PlanSessionResource::collection($paginator->items())->resolve(),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
+            'message' => 'Plan sessions retrieved.',
+        ]);
+    }
 
     public function store(StorePlanSessionRequest $request): JsonResponse
     {
+        $this->planQuota->assertCanCreate($request);
+
         $planType = PlanType::query()->where('slug', $request->string('plan_type'))->firstOrFail();
 
         $session = PlanSession::query()->create([
             'user_id' => $request->user()?->id,
+            'creator_ip' => $request->ip(),
             'plan_type_id' => $planType->id,
             'status' => PlanSession::STATUS_READY,
             'city' => $request->resolvedCity(),
@@ -49,6 +80,30 @@ class PlanSessionController extends Controller
             ],
             'message' => 'Plan session created.',
         ], 201);
+    }
+
+    public function claim(Request $request, PlanSession $planSession): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($planSession->user_id !== null && $planSession->user_id !== $user->id) {
+            throw ValidationException::withMessages([
+                'session' => ['This plan belongs to another account.'],
+            ]);
+        }
+
+        if ($planSession->user_id === null) {
+            $planSession->update(['user_id' => $user->id]);
+        }
+
+        $planSession->load(['planType', 'suggestions', 'itinerary']);
+
+        return response()->json([
+            'data' => [
+                'plan_session' => new PlanSessionResource($planSession),
+            ],
+            'message' => 'Plan session claimed.',
+        ]);
     }
 
     public function show(PlanSession $planSession): JsonResponse

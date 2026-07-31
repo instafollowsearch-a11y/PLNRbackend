@@ -18,6 +18,24 @@
                     {{ $stop['notes'] }}
                 </p>
             @endif
+            @php
+                $venueUrl = $stop['venue_url'] ?? null;
+                $mapsUrl = $stop['maps_url'] ?? null;
+                $externalUrl = $stop['external_url'] ?? null;
+            @endphp
+            @if ($venueUrl || $mapsUrl || $externalUrl)
+                <p style="margin:10px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;">
+                    @if ($venueUrl)
+                        <a href="{{ $venueUrl }}" style="color:{{ $theme['accent'] }};text-decoration:underline;margin-right:12px;">Open venue</a>
+                    @endif
+                    @if ($mapsUrl)
+                        <a href="{{ $mapsUrl }}" style="color:{{ $theme['accent'] }};text-decoration:underline;margin-right:12px;">Directions</a>
+                    @endif
+                    @if ($externalUrl && $externalUrl !== $venueUrl)
+                        <a href="{{ $externalUrl }}" style="color:{{ $theme['accent'] }};text-decoration:underline;">More info</a>
+                    @endif
+                </p>
+            @endif
         </td>
     </tr>
 </table>

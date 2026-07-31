@@ -22,6 +22,7 @@ class RegistrationLoginTest extends TestCase
         $registerResponse
             ->assertCreated()
             ->assertJsonPath('data.user.email', 'user@plnr.test')
+            ->assertJsonPath('data.user.role', 'user')
             ->assertJsonStructure(['data' => ['user', 'token'], 'message']);
 
         $token = $registerResponse->json('data.token');
