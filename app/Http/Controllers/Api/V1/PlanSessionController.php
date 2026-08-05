@@ -36,10 +36,15 @@ class PlanSessionController extends Controller
     public function index(Request $request): JsonResponse
     {
         $perPage = min(50, max(1, $request->integer('per_page', 20)));
+        $user = $request->user();
+        $memberSessionIds = $user->planMemberships()->pluck('plan_session_id');
 
-        $paginator = $request->user()
-            ->planSessions()
-            ->with(['planType', 'itinerary'])
+        $paginator = PlanSession::query()
+            ->where(function ($query) use ($user, $memberSessionIds): void {
+                $query->where('user_id', $user->id)
+                    ->orWhereIn('id', $memberSessionIds);
+            })
+            ->with(['planType', 'itinerary', 'user'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
@@ -94,9 +99,10 @@ class PlanSessionController extends Controller
 
         if ($planSession->user_id === null) {
             $planSession->update(['user_id' => $user->id]);
+            $planSession->ensureOwnerMembership();
         }
 
-        $planSession->load(['planType', 'suggestions', 'itinerary']);
+        $planSession->load(['planType', 'suggestions', 'itinerary', 'user']);
 
         return response()->json([
             'data' => [
@@ -262,7 +268,6 @@ class PlanSessionController extends Controller
         }
 
         $email = $request->string('email')->toString();
-        $phone = $request->string('phone')->toString();
 
         try {
             Mail::to($email)->send(new ItineraryMail($planSession, $itinerary));
@@ -270,7 +275,6 @@ class PlanSessionController extends Controller
             Log::error('plan_session.send_email_failed', [
                 'plan_session_uuid' => $planSession->uuid,
                 'email' => $email,
-                'phone' => $phone,
                 'error' => $exception->getMessage(),
             ]);
 
@@ -281,17 +285,29 @@ class PlanSessionController extends Controller
 
         $itinerary->update(['email_sent_at' => now()]);
         $planSession->update([
-            'recipient_phone' => $phone,
             'recipient_email' => $email,
         ]);
         $planSession->markStatus(PlanSession::STATUS_COMPLETED);
 
         $this->scheduleStopReminders->forGuestSend($planSession, $itinerary, $email);
 
+        $planSession->loadMissing(['members.user', 'user']);
+        $memberEmails = $planSession->members
+            ->map(fn ($member) => $member->user?->email)
+            ->filter()
+            ->push($planSession->user?->email)
+            ->map(fn ($memberEmail) => strtolower((string) $memberEmail))
+            ->unique()
+            ->reject(fn ($memberEmail) => $memberEmail === strtolower($email))
+            ->values();
+
+        foreach ($memberEmails as $memberEmail) {
+            $this->scheduleStopReminders->forMember($planSession, $itinerary, $memberEmail);
+        }
+
         return response()->json([
             'data' => [
                 'email' => $email,
-                'phone' => $phone,
                 'sent_at' => $itinerary->fresh()->email_sent_at?->toIso8601String(),
             ],
             'message' => 'Itinerary email sent.',

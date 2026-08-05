@@ -17,7 +17,9 @@ class UpdateUserProfileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'city' => ['required', 'string', 'max:255'],
+            'city' => ['sometimes', 'required', 'string', 'max:255'],
+            'interests' => ['sometimes', 'array', 'max:20'],
+            'interests.*' => ['string', 'max:80'],
         ];
     }
 }

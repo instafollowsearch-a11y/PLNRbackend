@@ -29,13 +29,13 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return 'You are a vacation itinerary planner. Return only valid JSON with keys: title (string), summary (string), days (array of objects with date, theme, stops where each stop has time, name, activity, notes, and optional venue_url / maps_url https links when a real venue page or maps link is known).';
+        return 'You are a vacation itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), days (array of objects with date, theme, stops where each stop has time, name, activity, notes under 25 words, and optional venue_url / maps_url https links when known). Keep the full response under 3000 tokens.';
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string
     {
         return implode("\n", [
-            'Create a multi-day vacation itinerary.',
+            'Create a multi-day vacation itinerary as compact JSON only.',
             $this->formatAnswers($session),
             $this->formatSuggestionContext($suggestion),
         ]);

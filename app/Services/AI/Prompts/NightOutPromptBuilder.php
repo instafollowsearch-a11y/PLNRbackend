@@ -35,7 +35,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return 'You are a nightlife itinerary planner. Return only valid JSON with keys: title (string), summary (string), stops (array of objects with time, name, activity, notes, and optional venue_url / maps_url https links when a real venue page or maps link is known).';
+        return 'You are a nightlife itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), stops (array of 3-6 objects with time, name, activity, notes under 25 words, and optional venue_url / maps_url https links when known). Keep the full response under 2500 tokens.';
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string
@@ -44,7 +44,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
         $payload = $suggestion->payload ?? [];
 
         return implode("\n", [
-            'Create a detailed evening itinerary.',
+            'Create a detailed evening itinerary as compact JSON only.',
             'City: '.($session->city ?? $answers['city'] ?? ''),
             'Group size: '.($answers['group_size'] ?? ''),
             'Budget per person: '.($answers['budget_per_person'] ?? ''),

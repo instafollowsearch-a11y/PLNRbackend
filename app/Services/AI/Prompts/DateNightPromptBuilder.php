@@ -36,7 +36,7 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return 'You are a romantic date itinerary planner. Return only valid JSON with keys: title (string), summary (string), stops (array of objects with time, name, activity, notes, and optional venue_url / maps_url https links when a real venue page or maps link is known). Include enough stops to cover the requested number of events throughout the day.';
+        return 'You are a romantic date itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), stops (array of 3-8 objects with time, name, activity, notes under 25 words, and optional venue_url / maps_url https links when known). Cover the requested number of events. Keep the full response under 2500 tokens.';
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string
@@ -44,7 +44,7 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
         $answers = $session->answers ?? [];
 
         return implode("\n", [
-            'Create a full-day romantic date itinerary.',
+            'Create a full-day romantic date itinerary as compact JSON only.',
             $this->formatAnswers($session),
             $this->formatSuggestionContext($suggestion),
             'Event count requested: '.($answers['event_count'] ?? ''),

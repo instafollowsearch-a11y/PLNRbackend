@@ -17,12 +17,17 @@ class ScheduleItineraryStopReminders
 
     public function forGuestSend(PlanSession $planSession, Itinerary $itinerary, string $recipientEmail): void
     {
-        $this->schedule($planSession, $itinerary, $recipientEmail, null);
+        $this->schedule($planSession, $itinerary, $recipientEmail, null, replaceRecipient: true);
+    }
+
+    public function forMember(PlanSession $planSession, Itinerary $itinerary, string $recipientEmail): void
+    {
+        $this->schedule($planSession, $itinerary, $recipientEmail, null, replaceRecipient: true);
     }
 
     public function forBooking(PlanSession $planSession, Itinerary $itinerary, Booking $booking, string $recipientEmail): void
     {
-        $this->schedule($planSession, $itinerary, $recipientEmail, $booking->id);
+        $this->schedule($planSession, $itinerary, $recipientEmail, $booking->id, replaceRecipient: true);
     }
 
     private function schedule(
@@ -30,13 +35,18 @@ class ScheduleItineraryStopReminders
         Itinerary $itinerary,
         string $recipientEmail,
         ?int $bookingId,
+        bool $replaceRecipient = true,
     ): void {
         $planSession->loadMissing('planType');
+        $recipientEmail = strtolower(trim($recipientEmail));
 
-        ItineraryStopReminder::query()
-            ->where('itinerary_id', $itinerary->id)
-            ->whereNull('email_sent_at')
-            ->delete();
+        if ($replaceRecipient) {
+            ItineraryStopReminder::query()
+                ->where('itinerary_id', $itinerary->id)
+                ->where('recipient_email', $recipientEmail)
+                ->whereNull('email_sent_at')
+                ->delete();
+        }
 
         $content = $itinerary->content ?? [];
         $stops = $this->scheduleParser->allStops($content, $planSession);
@@ -51,6 +61,7 @@ class ScheduleItineraryStopReminders
 
             $alreadySent = ItineraryStopReminder::query()
                 ->where('itinerary_id', $itinerary->id)
+                ->where('recipient_email', $recipientEmail)
                 ->where('stop_index', $stop['stop_index'])
                 ->when(
                     $stop['day_index'] === null,
@@ -61,6 +72,22 @@ class ScheduleItineraryStopReminders
                 ->exists();
 
             if ($alreadySent) {
+                continue;
+            }
+
+            $pendingExists = ItineraryStopReminder::query()
+                ->where('itinerary_id', $itinerary->id)
+                ->where('recipient_email', $recipientEmail)
+                ->where('stop_index', $stop['stop_index'])
+                ->when(
+                    $stop['day_index'] === null,
+                    fn ($query) => $query->whereNull('day_index'),
+                    fn ($query) => $query->where('day_index', $stop['day_index']),
+                )
+                ->whereNull('email_sent_at')
+                ->exists();
+
+            if ($pendingExists) {
                 continue;
             }
 

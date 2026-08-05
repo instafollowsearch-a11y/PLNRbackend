@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\V1\Admin\SettingsController as AdminSettingsControl
 use App\Http\Controllers\Api\V1\Admin\StatsController as AdminStatsController;
 use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BillingConfigController;
+use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\BookingConfigController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\EventController;
@@ -11,15 +13,20 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PlanLimitController;
 use App\Http\Controllers\Api\V1\PlanSessionController;
+use App\Http\Controllers\Api\V1\PlanShareController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\StripeWebhookController;
+use App\Http\Controllers\Api\V1\WeekendRecommendationController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
     Route::get('/health', [HealthController::class, 'show']);
     Route::get('/booking-config', [BookingConfigController::class, 'show']);
+    Route::get('/billing-config', [BillingConfigController::class, 'show']);
 
     Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
+
+    Route::get('/plan-shares/{token}', [PlanShareController::class, 'show']);
 
     Route::prefix('auth')->group(function (): void {
         Route::middleware('throttle:auth')->group(function (): void {
@@ -38,6 +45,25 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/events', [EventController::class, 'index']);
         Route::get('/plan-sessions', [PlanSessionController::class, 'index']);
         Route::post('/plan-sessions/{planSession}/claim', [PlanSessionController::class, 'claim']);
+        Route::post('/plan-shares/{token}/accept', [PlanShareController::class, 'accept']);
+        Route::post('/billing/checkout-session', [BillingController::class, 'checkout'])
+            ->middleware('throttle:booking');
+        Route::post('/billing/portal-session', [BillingController::class, 'portal'])
+            ->middleware('throttle:booking');
+        Route::post('/billing/cancel-subscription', [BillingController::class, 'cancel'])
+            ->middleware('throttle:booking');
+
+        Route::middleware('pro')->group(function (): void {
+            Route::get('/weekend-recommendations', [WeekendRecommendationController::class, 'index']);
+            Route::post('/weekend-recommendations', [WeekendRecommendationController::class, 'store'])
+                ->middleware('throttle:ai');
+            Route::get('/weekend-recommendations/{weekendRecommendation}', [WeekendRecommendationController::class, 'show']);
+            Route::post('/weekend-recommendations/{weekendRecommendation}/send-email', [WeekendRecommendationController::class, 'sendEmail'])
+                ->middleware('throttle:email');
+            Route::post('/plan-sessions/{planSession}/shares', [PlanShareController::class, 'store'])
+                ->middleware('throttle:email');
+        });
+
         Route::middleware('throttle:booking')->group(function (): void {
             Route::post('/payment-methods/setup-intent', [PaymentMethodController::class, 'setupIntent']);
             Route::post('/payment-methods', [PaymentMethodController::class, 'store']);
@@ -62,7 +88,8 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware('auth.optional')->post('/plan-sessions', [PlanSessionController::class, 'store']);
 
-    Route::middleware('plan.session')->prefix('plan-sessions/{planSession}')->group(function (): void {
+    // auth.optional so Bearer tokens resolve for owners/viewers; guests still access unclaimed sessions.
+    Route::middleware(['auth.optional', 'plan.session'])->prefix('plan-sessions/{planSession}')->group(function (): void {
         Route::get('/', [PlanSessionController::class, 'show']);
         Route::middleware('throttle:ai')->group(function (): void {
             Route::post('/suggestions', [PlanSessionController::class, 'suggestions']);

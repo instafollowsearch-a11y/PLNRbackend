@@ -2,24 +2,29 @@
 
 namespace App\Services\Payments;
 
+use App\Services\Settings\AppSettings;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class PaymentGatewayResolver
 {
+    public function __construct(
+        private readonly AppSettings $settings,
+    ) {}
+
     public function resolve(): PaymentGateway
     {
-        if (app()->environment('testing')) {
+        if (app()->environment('testing') || $this->settings->stripeFake()) {
             return new FakePaymentGateway;
         }
 
-        $secret = (string) config('services.stripe.secret');
+        $secret = (string) ($this->settings->stripeSecret() ?? '');
 
         if ($secret !== '') {
-            return new StripePaymentGateway;
+            return new StripePaymentGateway($this->settings);
         }
 
-        if (app()->environment('local') && filter_var(env('STRIPE_FAKE', false), FILTER_VALIDATE_BOOL)) {
+        if (app()->environment('local')) {
             return new FakePaymentGateway;
         }
 

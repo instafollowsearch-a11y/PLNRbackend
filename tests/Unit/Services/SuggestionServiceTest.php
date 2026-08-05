@@ -46,7 +46,7 @@ class SuggestionServiceTest extends TestCase
             ],
         ]);
 
-        $service = new SuggestionService(new AnthropicClient, new PlanPromptBuilderResolver);
+        $service = new SuggestionService(app(AnthropicClient::class), new PlanPromptBuilderResolver);
         $suggestions = $service->generate($session);
 
         $this->assertGreaterThanOrEqual(3, $suggestions->count());

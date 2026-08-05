@@ -23,6 +23,30 @@ final class PlanTypeMailTheme
         $normalized = $slug ?? 'night_out';
 
         return match ($normalized) {
+            'weekend' => [
+                'slug' => 'weekend',
+                'label' => 'Weekend picks',
+                'accent' => '#D4622A',
+                'accentSoft' => '#F5D4C0',
+                'surface' => '#FFFFFF',
+                'softBg' => '#FBF3ED',
+                'text' => '#1A1A1A',
+                'muted' => '#6B5C52',
+                'border' => '#E4DDD4',
+                'motif' => 'moon',
+            ],
+            'share' => [
+                'slug' => 'share',
+                'label' => 'Shared plan',
+                'accent' => '#D4622A',
+                'accentSoft' => '#F5D4C0',
+                'surface' => '#FFFFFF',
+                'softBg' => '#FBF3ED',
+                'text' => '#1A1A1A',
+                'muted' => '#6B5C52',
+                'border' => '#E4DDD4',
+                'motif' => 'moon',
+            ],
             'date_night' => [
                 'slug' => 'date_night',
                 'label' => 'Date Night',

@@ -27,7 +27,7 @@ class ItineraryService
                 'role' => 'user',
                 'content' => $builder->itineraryUserPrompt($session, $suggestion),
             ],
-        ]);
+        ], true, 8192);
 
         $content = $builder->normalizeItineraryContent($response);
 

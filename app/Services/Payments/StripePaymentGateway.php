@@ -3,6 +3,7 @@
 namespace App\Services\Payments;
 
 use App\Models\User;
+use App\Services\Settings\AppSettings;
 use Illuminate\Support\Facades\Log;
 use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
@@ -11,9 +12,10 @@ class StripePaymentGateway implements PaymentGateway
 {
     private StripeClient $client;
 
-    public function __construct()
+    public function __construct(?AppSettings $settings = null)
     {
-        $this->client = new StripeClient((string) config('services.stripe.secret'));
+        $secret = $settings?->stripeSecret() ?? (string) config('services.stripe.secret');
+        $this->client = new StripeClient((string) $secret);
     }
 
     public function ensureCustomer(User $user): string

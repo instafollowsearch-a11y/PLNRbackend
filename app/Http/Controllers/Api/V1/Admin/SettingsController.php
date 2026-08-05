@@ -38,6 +38,24 @@ class SettingsController extends Controller
             $settings->set(AppSettings::RATE_LIMIT_AI_PER_HOUR, $request->integer('rate_limit_ai_per_hour'));
         }
 
+        if ($request->exists('pro_monthly_price_cents')) {
+            $settings->set(AppSettings::PRO_MONTHLY_PRICE_CENTS, $request->integer('pro_monthly_price_cents'));
+        }
+
+        $this->applyOptionalString($request, $settings, 'pro_currency', AppSettings::PRO_CURRENCY, 'clear_pro_currency');
+        $this->applyOptionalString($request, $settings, 'app_store_url', AppSettings::APP_STORE_URL, 'clear_app_store_url');
+        $this->applyOptionalString($request, $settings, 'play_store_url', AppSettings::PLAY_STORE_URL, 'clear_play_store_url');
+        $this->applyOptionalString($request, $settings, 'web_app_url', AppSettings::WEB_APP_URL, 'clear_web_app_url');
+        $this->applyOptionalString($request, $settings, 'stripe_secret', AppSettings::STRIPE_SECRET, 'clear_stripe_secret');
+        $this->applyOptionalString($request, $settings, 'stripe_publishable_key', AppSettings::STRIPE_PUBLISHABLE_KEY, 'clear_stripe_publishable_key');
+        $this->applyOptionalString($request, $settings, 'stripe_webhook_secret', AppSettings::STRIPE_WEBHOOK_SECRET, 'clear_stripe_webhook_secret');
+
+        if ($request->boolean('clear_stripe_fake')) {
+            $settings->forget(AppSettings::STRIPE_FAKE);
+        } elseif ($request->exists('stripe_fake')) {
+            $settings->set(AppSettings::STRIPE_FAKE, $request->boolean('stripe_fake'));
+        }
+
         return response()->json([
             'data' => [
                 'settings' => $settings->forAdmin(),

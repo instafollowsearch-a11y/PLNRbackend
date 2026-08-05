@@ -19,7 +19,11 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'city' => $this->city,
+            'interests' => $this->interests ?? [],
             'role' => $this->role ?? User::ROLE_USER,
+            'pro_status' => $this->pro_status ?? User::PRO_STATUS_INACTIVE,
+            'pro_current_period_end' => $this->pro_current_period_end?->toIso8601String(),
+            'is_pro' => $this->resource->isPro(),
         ];
     }
 }

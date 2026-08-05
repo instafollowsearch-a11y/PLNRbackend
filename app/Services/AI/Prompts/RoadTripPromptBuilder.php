@@ -28,13 +28,13 @@ class RoadTripPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return 'You are a road trip itinerary planner. Return only valid JSON with keys: title (string), summary (string), stops (array of objects with time, name, activity, notes, and optional venue_url / maps_url https links when a real venue page or maps link is known). Include departure, stops, food breaks, and arrival.';
+        return 'You are a road trip itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), stops (array of objects with time, name, activity, notes under 25 words, and optional venue_url / maps_url https links when known). Include departure, stops, food breaks, and arrival. Keep the full response under 2500 tokens.';
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string
     {
         return implode("\n", [
-            'Create a detailed road trip itinerary with times for each leg.',
+            'Create a detailed road trip itinerary with times for each leg as compact JSON only.',
             $this->formatAnswers($session),
             $this->formatSuggestionContext($suggestion),
         ]);

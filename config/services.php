@@ -45,12 +45,25 @@ return [
         'secret' => env('STRIPE_SECRET', env('STRIPE_KEY')),
         'publishable' => env('STRIPE_PUBLISHABLE_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'fake' => filter_var(env('STRIPE_FAKE', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'booking' => [
         'fee_cents' => (int) env('BOOKING_FEE_CENTS', 999),
         'currency' => env('BOOKING_CURRENCY', 'usd'),
         'ops_email' => env('BOOKING_OPS_EMAIL'),
+    ],
+
+    'pro' => [
+        'monthly_price_cents' => (int) env('PRO_MONTHLY_PRICE_CENTS', 999),
+        'currency' => env('PRO_CURRENCY', 'usd'),
+        'app_store_url' => env('APP_STORE_URL'),
+        'play_store_url' => env('PLAY_STORE_URL'),
+        'web_app_url' => env('WEB_APP_URL', env('FRONTEND_URL', 'http://localhost:5173')),
+        'checkout_success_origins' => array_values(array_filter(array_map(
+            trim(...),
+            explode(',', (string) env('CHECKOUT_SUCCESS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,plnr://')),
+        ))),
     ],
 
     'events' => [

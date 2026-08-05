@@ -57,7 +57,7 @@ class ItineraryServiceTest extends TestCase
             ],
         ]);
 
-        $service = new ItineraryService(new AnthropicClient, new PlanPromptBuilderResolver);
+        $service = new ItineraryService(app(AnthropicClient::class), new PlanPromptBuilderResolver);
         $itinerary = $service->generate($session, $suggestion);
 
         $this->assertSame('Saturday Night Out in Austin', $itinerary->content['title']);

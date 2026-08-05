@@ -24,8 +24,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(AiChatClient::class, AnthropicClient::class);
 
-        $this->app->singleton(PaymentGateway::class, function () {
-            return (new PaymentGatewayResolver)->resolve();
+        $this->app->singleton(PaymentGateway::class, function ($app) {
+            return $app->make(PaymentGatewayResolver::class)->resolve();
         });
 
         $this->app->singleton(BookingService::class, function ($app) {
@@ -57,7 +57,7 @@ class AppServiceProvider extends ServiceProvider
             $session = $request->route('planSession');
             $sessionKey = is_object($session) && isset($session->uuid)
                 ? $session->uuid
-                : (string) $request->route('planSession');
+                : (string) ($request->route('planSession') ?? $request->user()?->id ?? 'guest');
 
             $aiPerHour = app(\App\Services\Settings\AppSettings::class)->rateLimitAiPerHour();
 

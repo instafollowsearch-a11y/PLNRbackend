@@ -5,25 +5,97 @@ namespace App\Services\AI;
 use App\Services\Settings\AppSettings;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class AnthropicClient implements AiChatClient
 {
+    private const DEFAULT_MAX_TOKENS = 8192;
+
+    private readonly AnthropicJsonDecoder $jsonDecoder;
+
     public function __construct(
         private readonly AppSettings $settings,
-    ) {}
+        ?AnthropicJsonDecoder $jsonDecoder = null,
+    ) {
+        $this->jsonDecoder = $jsonDecoder ?? new AnthropicJsonDecoder;
+    }
 
     /**
      * @param  array<int, array{role: string, content: string}>  $messages
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
-    public function chat(array $messages, bool $jsonMode = true): array
+    public function chat(array $messages, bool $jsonMode = true, ?int $maxTokens = null, array $options = []): array
     {
         // Claude suggestion/itinerary calls often exceed PHP's default 30s limit.
         if (function_exists('set_time_limit')) {
             set_time_limit(180);
         }
 
+        $maxTokens ??= self::DEFAULT_MAX_TOKENS;
+        $response = $this->request($messages, $jsonMode, $maxTokens, $options);
+        $content = $this->extractTextContent($response['content'] ?? null);
+
+        if ($content === '') {
+            throw new RuntimeException('Anthropic returned an empty response.');
+        }
+
+        if (! $jsonMode) {
+            return ['content' => $content];
+        }
+
+        try {
+            return $this->jsonDecoder->decode($content);
+        } catch (RuntimeException $exception) {
+            $stopReason = is_string($response['stop_reason'] ?? null)
+                ? $response['stop_reason']
+                : null;
+
+            Log::warning('anthropic.json_decode_failed', [
+                'stop_reason' => $stopReason,
+                'preview' => mb_substr($content, 0, 400),
+            ]);
+
+            // One repair pass — common for truncated itinerary JSON (max_tokens) or prose wrappers.
+            $retryMessages = [
+                ...$messages,
+                [
+                    'role' => 'assistant',
+                    'content' => $content,
+                ],
+                [
+                    'role' => 'user',
+                    'content' => 'Your previous reply was not valid complete JSON. Reply again with ONLY the full JSON document, no markdown fences or commentary.',
+                ],
+            ];
+
+            $retryMaxTokens = $stopReason === 'max_tokens'
+                ? max($maxTokens, 12288)
+                : $maxTokens;
+
+            $retryResponse = $this->request($retryMessages, true, $retryMaxTokens, $options);
+            $retryContent = $this->extractTextContent($retryResponse['content'] ?? null);
+
+            if ($retryContent === '') {
+                throw $exception;
+            }
+
+            try {
+                return $this->jsonDecoder->decode($retryContent);
+            } catch (RuntimeException) {
+                throw $exception;
+            }
+        }
+    }
+
+    /**
+     * @param  array<int, array{role: string, content: string}>  $messages
+     * @param  array<string, mixed>  $options
+     * @return array<string, mixed>
+     */
+    private function request(array $messages, bool $jsonMode, int $maxTokens, array $options = []): array
+    {
         $apiKey = $this->settings->anthropicApiKey();
 
         if (empty($apiKey)) {
@@ -51,11 +123,13 @@ class AnthropicClient implements AiChatClient
             }
         }
 
+        $useWebSearch = (bool) ($options['web_search'] ?? false);
+
         $payload = [
             'model' => $this->settings->anthropicModel(),
-            'max_tokens' => 4096,
+            'max_tokens' => $maxTokens,
             'messages' => $anthropicMessages,
-            'temperature' => 0.7,
+            'temperature' => $useWebSearch ? 0.4 : 0.7,
         ];
 
         if ($system !== null) {
@@ -64,13 +138,30 @@ class AnthropicClient implements AiChatClient
                 : $system;
         }
 
+        if ($useWebSearch) {
+            $tool = [
+                'type' => (string) ($options['web_search_tool_type'] ?? 'web_search_20250305'),
+                'name' => 'web_search',
+                'max_uses' => max(1, (int) ($options['web_search_max_uses'] ?? 6)),
+            ];
+
+            $userLocation = $options['user_location'] ?? null;
+            if (is_array($userLocation) && $userLocation !== []) {
+                $tool['user_location'] = $userLocation;
+            }
+
+            $payload['tools'] = [$tool];
+        }
+
+        $timeout = $useWebSearch ? 180 : 120;
+
         try {
             $response = Http::withHeaders([
                 'x-api-key' => $apiKey,
                 'anthropic-version' => '2023-06-01',
                 'content-type' => 'application/json',
             ])
-                ->timeout(90)
+                ->timeout($timeout)
                 ->post($this->settings->anthropicUrl(), $payload)
                 ->throw();
         } catch (RequestException $exception) {
@@ -80,65 +171,10 @@ class AnthropicClient implements AiChatClient
             );
         }
 
-        $content = $this->extractTextContent($response->json('content'));
+        /** @var array<string, mixed> $json */
+        $json = $response->json();
 
-        if ($content === '') {
-            throw new RuntimeException('Anthropic returned an empty response.');
-        }
-
-        if (! $jsonMode) {
-            return ['content' => $content];
-        }
-
-        return $this->decodeJsonContent($content);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function decodeJsonContent(string $content): array
-    {
-        $content = trim($content);
-
-        if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/u', $content, $matches) === 1) {
-            $content = trim($matches[1]);
-        }
-
-        $decoded = json_decode($content, true);
-
-        if (is_array($decoded)) {
-            return $decoded;
-        }
-
-        $startObj = strpos($content, '{');
-        $startArr = strpos($content, '[');
-
-        if ($startObj === false && $startArr === false) {
-            throw new RuntimeException('Anthropic returned invalid JSON.');
-        }
-
-        if ($startObj === false) {
-            $start = $startArr;
-            $end = strrpos($content, ']');
-        } elseif ($startArr === false) {
-            $start = $startObj;
-            $end = strrpos($content, '}');
-        } else {
-            $start = min($startObj, $startArr);
-            $end = $start === $startObj ? strrpos($content, '}') : strrpos($content, ']');
-        }
-
-        if ($end === false || $end <= $start) {
-            throw new RuntimeException('Anthropic returned invalid JSON.');
-        }
-
-        $decoded = json_decode(substr($content, $start, $end - $start + 1), true);
-
-        if (! is_array($decoded)) {
-            throw new RuntimeException('Anthropic returned invalid JSON.');
-        }
-
-        return $decoded;
+        return $json;
     }
 
     /**

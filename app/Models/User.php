@@ -16,6 +16,14 @@ class User extends Authenticatable
 
     public const ROLE_ADMIN = 'admin';
 
+    public const PRO_STATUS_INACTIVE = 'inactive';
+
+    public const PRO_STATUS_ACTIVE = 'active';
+
+    public const PRO_STATUS_PAST_DUE = 'past_due';
+
+    public const PRO_STATUS_CANCELED = 'canceled';
+
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
@@ -26,7 +34,11 @@ class User extends Authenticatable
         'name',
         'email',
         'city',
+        'interests',
         'stripe_customer_id',
+        'stripe_subscription_id',
+        'pro_status',
+        'pro_current_period_end',
         'password',
     ];
 
@@ -43,6 +55,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'interests' => 'array',
+            'pro_current_period_end' => 'datetime',
         ];
     }
 
@@ -51,9 +65,24 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ADMIN;
     }
 
+    public function isPro(): bool
+    {
+        return app(\App\Services\Pro\ProAccess::class)->isActive($this);
+    }
+
     public function planSessions(): HasMany
     {
         return $this->hasMany(PlanSession::class);
+    }
+
+    public function planMemberships(): HasMany
+    {
+        return $this->hasMany(PlanMember::class);
+    }
+
+    public function weekendRecommendations(): HasMany
+    {
+        return $this->hasMany(WeekendRecommendation::class);
     }
 
     public function paymentMethods(): HasMany

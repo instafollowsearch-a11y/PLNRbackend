@@ -50,4 +50,14 @@ class UserFactory extends Factory
             'role' => User::ROLE_ADMIN,
         ]);
     }
+
+    public function pro(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'pro_status' => User::PRO_STATUS_ACTIVE,
+            'stripe_customer_id' => 'cus_test_'.Str::random(8),
+            'stripe_subscription_id' => 'sub_test_'.Str::random(8),
+            'pro_current_period_end' => now()->addMonth(),
+        ]);
+    }
 }

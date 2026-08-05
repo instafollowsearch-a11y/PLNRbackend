@@ -5,10 +5,15 @@ namespace App\Services\Payments;
 use App\Models\Booking;
 use Illuminate\Support\Facades\Log;
 use Stripe\Exception\SignatureVerificationException;
+use Stripe\StripeClient;
 use Stripe\Webhook;
 
 class StripeWebhookService
 {
+    public function __construct(
+        private readonly SubscriptionService $subscriptions,
+    ) {}
+
     public function handle(string $payload, ?string $signatureHeader): void
     {
         $secret = (string) config('services.stripe.webhook_secret');
@@ -26,8 +31,34 @@ class StripeWebhookService
         match ($event->type) {
             'payment_intent.succeeded' => $this->handlePaymentIntentSucceeded($event->data->object),
             'payment_intent.payment_failed' => $this->handlePaymentIntentFailed($event->data->object),
+            'checkout.session.completed' => $this->handleCheckoutSessionCompleted($event->data->object),
+            'customer.subscription.updated' => $this->subscriptions->syncSubscriptionFromStripeObject($event->data->object),
+            'customer.subscription.deleted' => $this->subscriptions->markCanceledFromSubscription($event->data->object),
             default => null,
         };
+    }
+
+    private function handleCheckoutSessionCompleted(object $session): void
+    {
+        if (($session->mode ?? null) !== 'subscription') {
+            return;
+        }
+
+        $subscriptionId = isset($session->subscription) ? (string) $session->subscription : '';
+        if ($subscriptionId === '') {
+            return;
+        }
+
+        try {
+            $client = new StripeClient((string) config('services.stripe.secret'));
+            $subscription = $client->subscriptions->retrieve($subscriptionId);
+            $this->subscriptions->syncSubscriptionFromStripeObject($subscription);
+        } catch (\Throwable $exception) {
+            Log::warning('stripe.webhook.subscription_retrieve_failed', [
+                'subscription_id' => $subscriptionId,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function handlePaymentIntentSucceeded(object $paymentIntent): void

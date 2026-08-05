@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'plan.session' => \App\Http\Middleware\EnsurePlanSessionAccess::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'auth.optional' => \App\Http\Middleware\OptionalSanctumAuth::class,
+            'pro' => \App\Http\Middleware\EnsureUserIsPro::class,
         ]);
         $middleware->validateCsrfTokens(except: [
             'api/v1/stripe/webhook',

@@ -93,6 +93,63 @@ class PlanSession extends Model
         return $this->hasMany(ItineraryStopReminder::class);
     }
 
+    public function members(): HasMany
+    {
+        return $this->hasMany(PlanMember::class);
+    }
+
+    public function shares(): HasMany
+    {
+        return $this->hasMany(PlanShare::class);
+    }
+
+    public function isOwnedBy(?User $user): bool
+    {
+        return $user !== null && $this->user_id !== null && $this->user_id === $user->id;
+    }
+
+    public function isMember(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return $this->members()->where('user_id', $user->id)->exists();
+    }
+
+    public function memberRole(?User $user): ?string
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        if ($this->isOwnedBy($user)) {
+            return PlanMember::ROLE_OWNER;
+        }
+
+        $member = $this->members()->where('user_id', $user->id)->first();
+
+        return $member?->role;
+    }
+
+    public function ensureOwnerMembership(): void
+    {
+        if ($this->user_id === null) {
+            return;
+        }
+
+        PlanMember::query()->firstOrCreate(
+            [
+                'plan_session_id' => $this->id,
+                'user_id' => $this->user_id,
+            ],
+            [
+                'role' => PlanMember::ROLE_OWNER,
+                'accepted_at' => now(),
+            ],
+        );
+    }
+
     public function markStatus(string $status): void
     {
         $this->update(['status' => $status]);

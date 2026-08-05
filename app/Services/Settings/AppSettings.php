@@ -25,9 +25,29 @@ class AppSettings
 
     public const RATE_LIMIT_AI_PER_HOUR = 'rate_limit_ai_per_hour';
 
+    public const PRO_MONTHLY_PRICE_CENTS = 'pro_monthly_price_cents';
+
+    public const PRO_CURRENCY = 'pro_currency';
+
+    public const APP_STORE_URL = 'app_store_url';
+
+    public const PLAY_STORE_URL = 'play_store_url';
+
+    public const WEB_APP_URL = 'web_app_url';
+
+    public const STRIPE_SECRET = 'stripe_secret';
+
+    public const STRIPE_PUBLISHABLE_KEY = 'stripe_publishable_key';
+
+    public const STRIPE_WEBHOOK_SECRET = 'stripe_webhook_secret';
+
+    public const STRIPE_FAKE = 'stripe_fake';
+
     /** Non-secret defaults always present in the settings map. */
     public const DEFAULTS = [
         self::FREE_PLANS_PER_DAY => 5,
+        self::PRO_MONTHLY_PRICE_CENTS => 999,
+        self::PRO_CURRENCY => 'usd',
     ];
 
     /** Keys that may be stored as overrides; empty/null means fall back to env. */
@@ -39,10 +59,21 @@ class AppSettings
         self::MAIL_FROM_NAME,
         self::BOOKING_OPS_EMAIL,
         self::RATE_LIMIT_AI_PER_HOUR,
+        self::PRO_MONTHLY_PRICE_CENTS,
+        self::PRO_CURRENCY,
+        self::APP_STORE_URL,
+        self::PLAY_STORE_URL,
+        self::WEB_APP_URL,
+        self::STRIPE_SECRET,
+        self::STRIPE_PUBLISHABLE_KEY,
+        self::STRIPE_WEBHOOK_SECRET,
+        self::STRIPE_FAKE,
     ];
 
     public const SECRETS = [
         self::ANTHROPIC_API_KEY,
+        self::STRIPE_SECRET,
+        self::STRIPE_WEBHOOK_SECRET,
     ];
 
     private const CACHE_KEY = 'plnr.app_settings';
@@ -182,6 +213,66 @@ class AppSettings
         );
         $settings[self::RATE_LIMIT_AI_PER_HOUR.'_env'] = (int) config('rate_limiting.ai_per_hour');
 
+        $settings[self::PRO_MONTHLY_PRICE_CENTS] = $this->proMonthlyPriceCents();
+        $settings[self::PRO_MONTHLY_PRICE_CENTS.'_source'] = $this->sourceFor(
+            self::PRO_MONTHLY_PRICE_CENTS,
+            (string) config('services.pro.monthly_price_cents'),
+        );
+        $settings[self::PRO_MONTHLY_PRICE_CENTS.'_env'] = (int) config('services.pro.monthly_price_cents');
+
+        $settings[self::PRO_CURRENCY] = $this->proCurrency();
+        $settings[self::PRO_CURRENCY.'_source'] = $this->sourceFor(
+            self::PRO_CURRENCY,
+            config('services.pro.currency'),
+        );
+        $settings[self::PRO_CURRENCY.'_env'] = config('services.pro.currency');
+
+        $settings[self::APP_STORE_URL] = $this->appStoreUrl();
+        $settings[self::APP_STORE_URL.'_source'] = $this->sourceFor(
+            self::APP_STORE_URL,
+            config('services.pro.app_store_url'),
+        );
+        $settings[self::APP_STORE_URL.'_env'] = config('services.pro.app_store_url');
+
+        $settings[self::PLAY_STORE_URL] = $this->playStoreUrl();
+        $settings[self::PLAY_STORE_URL.'_source'] = $this->sourceFor(
+            self::PLAY_STORE_URL,
+            config('services.pro.play_store_url'),
+        );
+        $settings[self::PLAY_STORE_URL.'_env'] = config('services.pro.play_store_url');
+
+        $settings[self::WEB_APP_URL] = $this->webAppUrl();
+        $settings[self::WEB_APP_URL.'_source'] = $this->sourceFor(
+            self::WEB_APP_URL,
+            config('services.pro.web_app_url'),
+        );
+        $settings[self::WEB_APP_URL.'_env'] = config('services.pro.web_app_url');
+
+        $settings[self::STRIPE_SECRET.'_set'] = $this->stripeSecret() !== null;
+        $settings[self::STRIPE_SECRET.'_source'] = $this->sourceFor(
+            self::STRIPE_SECRET,
+            config('services.stripe.secret'),
+        );
+        $settings[self::STRIPE_SECRET.'_hint'] = $this->maskSecret($this->stripeSecret());
+
+        $settings[self::STRIPE_PUBLISHABLE_KEY] = $this->stripePublishableKey();
+        $settings[self::STRIPE_PUBLISHABLE_KEY.'_source'] = $this->sourceFor(
+            self::STRIPE_PUBLISHABLE_KEY,
+            config('services.stripe.publishable'),
+        );
+        $settings[self::STRIPE_PUBLISHABLE_KEY.'_env'] = config('services.stripe.publishable');
+
+        $settings[self::STRIPE_WEBHOOK_SECRET.'_set'] = $this->stripeWebhookSecret() !== null;
+        $settings[self::STRIPE_WEBHOOK_SECRET.'_source'] = $this->sourceFor(
+            self::STRIPE_WEBHOOK_SECRET,
+            config('services.stripe.webhook_secret'),
+        );
+        $settings[self::STRIPE_WEBHOOK_SECRET.'_hint'] = $this->maskSecret($this->stripeWebhookSecret());
+
+        $settings[self::STRIPE_FAKE] = $this->stripeFake();
+        $settings[self::STRIPE_FAKE.'_source'] = $this->hasOverride(self::STRIPE_FAKE) ? 'admin' : 'env';
+        $settings[self::STRIPE_FAKE.'_env'] = (bool) config('services.stripe.fake', false);
+
         return $settings;
     }
 
@@ -268,6 +359,104 @@ class AppSettings
             self::RATE_LIMIT_AI_PER_HOUR,
             (int) config('rate_limiting.ai_per_hour', 20),
         ));
+    }
+
+    public function proMonthlyPriceCents(): int
+    {
+        return max(100, $this->resolveInt(
+            self::PRO_MONTHLY_PRICE_CENTS,
+            (int) config('services.pro.monthly_price_cents', 999),
+        ));
+    }
+
+    public function proCurrency(): string
+    {
+        return strtolower($this->resolveString(
+            self::PRO_CURRENCY,
+            (string) config('services.pro.currency', 'usd'),
+        ) ?? 'usd');
+    }
+
+    public function appStoreUrl(): ?string
+    {
+        $fallback = config('services.pro.app_store_url');
+
+        return $this->resolveString(
+            self::APP_STORE_URL,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function playStoreUrl(): ?string
+    {
+        $fallback = config('services.pro.play_store_url');
+
+        return $this->resolveString(
+            self::PLAY_STORE_URL,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function webAppUrl(): ?string
+    {
+        $fallback = config('services.pro.web_app_url');
+
+        return $this->resolveString(
+            self::WEB_APP_URL,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function stripeSecret(): ?string
+    {
+        $fallback = config('services.stripe.secret');
+
+        return $this->resolveString(
+            self::STRIPE_SECRET,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function stripePublishableKey(): ?string
+    {
+        $fallback = config('services.stripe.publishable');
+
+        return $this->resolveString(
+            self::STRIPE_PUBLISHABLE_KEY,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function stripeWebhookSecret(): ?string
+    {
+        $fallback = config('services.stripe.webhook_secret');
+
+        return $this->resolveString(
+            self::STRIPE_WEBHOOK_SECRET,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function stripeFake(): bool
+    {
+        if ($this->hasOverride(self::STRIPE_FAKE)) {
+            $override = $this->get(self::STRIPE_FAKE);
+
+            if (is_bool($override)) {
+                return $override;
+            }
+
+            if (is_int($override) || is_float($override)) {
+                return (int) $override === 1;
+            }
+
+            if (is_string($override)) {
+                return filter_var($override, FILTER_VALIDATE_BOOLEAN);
+            }
+        }
+
+        return (bool) config('services.stripe.fake', false)
+            || filter_var(env('STRIPE_FAKE', false), FILTER_VALIDATE_BOOLEAN);
     }
 
     /**

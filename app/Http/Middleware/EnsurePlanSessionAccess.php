@@ -19,11 +19,25 @@ class EnsurePlanSessionAccess
         }
 
         $user = $request->user();
+        $method = strtoupper($request->method());
+        $isWrite = ! in_array($method, ['GET', 'HEAD', 'OPTIONS'], true);
 
-        if ($planSession->user_id !== null && ($user === null || $planSession->user_id !== $user->id)) {
-            abort(403, 'You do not have access to this plan session.');
+        if ($planSession->user_id === null) {
+            return $next($request);
         }
 
-        return $next($request);
+        if ($user !== null && $planSession->user_id === $user->id) {
+            return $next($request);
+        }
+
+        if ($user !== null && $planSession->isMember($user)) {
+            if ($isWrite) {
+                abort(403, 'Viewers can view this plan but cannot edit it.');
+            }
+
+            return $next($request);
+        }
+
+        abort(403, 'You do not have access to this plan session.');
     }
 }

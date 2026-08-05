@@ -7,7 +7,9 @@ use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Requests\Api\V1\RegisterRequest;
 use App\Http\Requests\Api\V1\UpdateUserProfileRequest;
 use App\Http\Resources\UserResource;
+use App\Models\PlanShare;
 use App\Models\User;
+use App\Services\Plans\PlanShareService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +17,10 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        private readonly PlanShareService $planShares,
+    ) {}
+
     public function register(RegisterRequest $request): JsonResponse
     {
         $user = User::query()->create([
@@ -23,11 +29,19 @@ class AuthController extends Controller
             'password' => $request->string('password')->toString(),
         ]);
 
+        $inviteToken = $request->validated('invite_token');
+        if (is_string($inviteToken) && $inviteToken !== '') {
+            $share = PlanShare::query()->where('token', $inviteToken)->first();
+            if ($share !== null) {
+                $this->planShares->accept($share, $user);
+            }
+        }
+
         $token = $user->createToken('mobile')->plainTextToken;
 
         return response()->json([
             'data' => [
-                'user' => new UserResource($user),
+                'user' => new UserResource($user->fresh()),
                 'token' => $token,
             ],
             'message' => 'Registration successful.',
@@ -81,9 +95,19 @@ class AuthController extends Controller
     public function update(UpdateUserProfileRequest $request): JsonResponse
     {
         $user = $request->user();
-        $user->update([
-            'city' => $request->string('city')->toString(),
-        ]);
+        $payload = [];
+
+        if ($request->exists('city')) {
+            $payload['city'] = $request->string('city')->toString();
+        }
+
+        if ($request->exists('interests')) {
+            $payload['interests'] = $request->input('interests', []);
+        }
+
+        if ($payload !== []) {
+            $user->update($payload);
+        }
 
         return response()->json([
             'data' => [

@@ -158,10 +158,9 @@ class PlanSessionApiTest extends TestCase
 
         $this->postJson("/api/v1/plan-sessions/{$uuid}/send-email", [
             'email' => 'guest@plnr.test',
-            'phone' => '+15551234567',
         ])->assertOk()
-            ->assertJsonPath('data.phone', '+15551234567')
-            ->assertJsonPath('data.email', 'guest@plnr.test');
+            ->assertJsonPath('data.email', 'guest@plnr.test')
+            ->assertJsonMissingPath('data.phone');
 
         Mail::assertSent(ItineraryMail::class, function (ItineraryMail $mail) {
             return $mail->hasTo('guest@plnr.test');
@@ -169,7 +168,6 @@ class PlanSessionApiTest extends TestCase
 
         $session = PlanSession::query()->where('uuid', $uuid)->first();
         $this->assertSame('guest@plnr.test', $session?->recipient_email);
-        $this->assertSame('+15551234567', $session?->recipient_phone);
         $this->assertSame(
             PlanSession::STATUS_COMPLETED,
             $session?->status,
