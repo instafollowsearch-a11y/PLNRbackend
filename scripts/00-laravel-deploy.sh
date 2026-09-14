@@ -15,3 +15,6 @@ php artisan view:cache
 
 echo "Running migrations..."
 php artisan migrate --force
+
+echo "Seeding plan types and app settings..."
+php artisan db:seed --class=ProductionSeeder --force
