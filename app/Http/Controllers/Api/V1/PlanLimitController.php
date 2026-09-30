@@ -16,9 +16,9 @@ class PlanLimitController extends Controller
 
         return response()->json([
             'data' => [
-                'limit' => $quota->dailyLimit(),
-                'remaining' => $quota->remainingToday($user, $ip),
-                'window' => 'day',
+                'limit' => $quota->monthlyLimit(),
+                'remaining' => $quota->remainingThisMonth($user, $ip),
+                'window' => 'month',
             ],
             'message' => 'Plan limits retrieved.',
         ]);

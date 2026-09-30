@@ -66,4 +66,45 @@ class ItineraryServiceTest extends TestCase
 
         Http::assertSentCount(1);
     }
+
+    public function test_draft_is_reused_and_copied_without_another_model_call(): void
+    {
+        $this->fakeAnthropicItinerary();
+
+        $planType = PlanType::factory()->create(['slug' => 'night_out']);
+        $session = PlanSession::factory()->create([
+            'plan_type_id' => $planType->id,
+            'status' => PlanSession::STATUS_SUGGESTIONS,
+            'user_id' => null,
+            'city' => 'Austin',
+            'answers' => ['city' => 'Austin'],
+        ]);
+        $suggestion = Suggestion::factory()->create([
+            'plan_session_id' => $session->id,
+            'payload' => [
+                'name' => 'Jazz and Bites',
+                'description' => 'Cocktails and jazz',
+                'venues' => ['Blue Note Bar'],
+            ],
+        ]);
+        $untouched = Suggestion::factory()->create([
+            'plan_session_id' => $session->id,
+            'payload' => ['name' => 'Other night', 'description' => 'Still here'],
+        ]);
+
+        $service = new ItineraryService(app(AnthropicClient::class), new PlanPromptBuilderResolver);
+        $drafted = $service->draft($session, $suggestion);
+        $service->draft($session, $drafted);
+
+        $this->assertSame('Saturday Night Out in Austin', $drafted->itinerary_content['title']);
+        $this->assertSame(PlanSession::STATUS_SUGGESTIONS, $session->fresh()->status);
+        $this->assertNull($session->fresh()->itinerary);
+        $this->assertSame('Other night', $untouched->fresh()->payload['name']);
+
+        $itinerary = $service->generate($session->fresh(), $drafted->fresh());
+
+        $this->assertSame('Saturday Night Out in Austin', $itinerary->content['title']);
+        $this->assertSame(PlanSession::STATUS_ITINERARY, $session->fresh()->status);
+        Http::assertSentCount(1);
+    }
 }

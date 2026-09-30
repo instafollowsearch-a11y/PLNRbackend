@@ -16,6 +16,7 @@ class SuggestionResource extends JsonResource
         return [
             'id' => $this->id,
             'payload' => $this->payload,
+            'itinerary_content' => $this->itinerary_content,
             'selected_at' => $this->selected_at?->toIso8601String(),
         ];
     }

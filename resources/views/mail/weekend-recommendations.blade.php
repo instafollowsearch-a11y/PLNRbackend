@@ -9,40 +9,47 @@
         @if (!empty($recommendation->interests) && is_array($recommendation->interests))
             ({{ implode(', ', $recommendation->interests) }})
         @endif
-        — here are {{ count($items) }} recommendations for the upcoming week.
+        — here are {{ count($items) }} recommendations for the coming weekend.
     </p>
 
-    @foreach ($items as $index => $item)
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px 0;border:1px solid {{ $theme['border'] }};border-radius:10px;overflow:hidden;">
-            <tr>
-                <td style="padding:14px 16px;background-color:{{ $theme['surface'] }};">
-                    <p style="margin:0 0 4px 0;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:{{ $theme['accent'] }};font-weight:700;">
-                        Pick {{ $index + 1 }}
-                    </p>
-                    <p style="margin:0 0 6px 0;font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:700;color:{{ $theme['text'] }};">
-                        {{ $item['title'] ?? 'Event' }}
-                    </p>
-                    @if (!empty($item['venue']) || !empty($item['starts_at']))
-                        <p style="margin:0 0 8px 0;font-size:14px;color:{{ $theme['muted'] }};">
-                            @if (!empty($item['venue'])){{ $item['venue'] }}@endif
-                            @if (!empty($item['venue']) && !empty($item['starts_at'])) · @endif
-                            @if (!empty($item['starts_at']))
-                                {{ \Illuminate\Support\Carbon::parse($item['starts_at'])->timezone(config('app.timezone'))->format('D, M j · g:i A') }}
-                            @endif
-                        </p>
-                    @endif
-                    @if (!empty($item['reason']))
-                        <p style="margin:0 0 10px 0;font-size:14px;color:{{ $theme['text'] }};">
-                            {{ $item['reason'] }}
-                        </p>
-                    @endif
-                    @if (!empty($item['url']))
-                        <a href="{{ $item['url'] }}" style="color:{{ $theme['accent'] }};font-size:14px;font-weight:600;text-decoration:none;">
-                            View event →
-                        </a>
-                    @endif
-                </td>
-            </tr>
-        </table>
-    @endforeach
+    @if (is_array($days))
+        @foreach ($days as $dayName => $dayItems)
+            <p style="margin:18px 0 10px 0;font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:{{ $theme['text'] }};">
+                {{ $dayName }}
+            </p>
+            @if (count($dayItems) === 0)
+                <p style="margin:0 0 14px 0;font-size:14px;color:{{ $theme['muted'] }};">Nothing listed.</p>
+            @endif
+            @foreach ($dayItems as $index => $item)
+                @include('mail.partials.weekend-event', ['theme' => $theme, 'item' => $item, 'index' => $index])
+            @endforeach
+        @endforeach
+    @else
+        @foreach ($items as $index => $item)
+            @include('mail.partials.weekend-event', ['theme' => $theme, 'item' => $item, 'index' => $index])
+        @endforeach
+    @endif
+
+    @if (is_array($saturdayPlan) && !empty($saturdayPlan['title']))
+        <p style="margin:22px 0 8px 0;font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:{{ $theme['text'] }};">
+            Saturday plan
+        </p>
+        <p style="margin:0 0 6px 0;font-size:16px;font-weight:700;color:{{ $theme['text'] }};">
+            {{ $saturdayPlan['title'] }}
+        </p>
+        @if (!empty($saturdayPlan['summary']))
+            <p style="margin:0 0 12px 0;font-size:14px;color:{{ $theme['muted'] }};">
+                {{ $saturdayPlan['summary'] }}
+            </p>
+        @endif
+        @foreach (($saturdayPlan['stops'] ?? []) as $stop)
+            <p style="margin:0 0 8px 0;font-size:14px;color:{{ $theme['text'] }};">
+                <strong>{{ $stop['time'] ?? 'Time TBA' }}</strong>
+                {{ $stop['name'] ?? 'Stop' }}
+                @if (!empty($stop['detail']))
+                    — {{ $stop['detail'] }}
+                @endif
+            </p>
+        @endforeach
+    @endif
 @endcomponent

@@ -54,6 +54,10 @@ class ItineraryMailTest extends TestCase
         $theme = PlanTypeMailTheme::for('night_out');
 
         $this->assertStringContainsString('PLNR', $html);
+        $this->assertStringContainsString(
+            'Times are ranges, not exact times. Places and plans can be off. Double-check before you go.',
+            $html,
+        );
         $this->assertStringContainsString('Saturday Night Out in Austin', $html);
         $this->assertStringContainsString('Austin', $html);
         $this->assertStringContainsString('Blue Note Bar', $html);
@@ -61,6 +65,8 @@ class ItineraryMailTest extends TestCase
         $this->assertStringContainsString('Live jazz set', $html);
         $this->assertStringContainsString($theme['accent'], $html);
         $this->assertStringContainsString('data-motif="moon"', $html);
+        $this->assertStringContainsString('margin-top:-28px', $html);
+        $this->assertStringNotContainsString('height="200"', $html);
         $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html);
         $this->assertStringNotContainsString('Laravel Logo', $html);
     }
@@ -122,6 +128,8 @@ class ItineraryMailTest extends TestCase
         $this->assertStringContainsString('Sagrada Familia', $html);
         $this->assertStringContainsString($theme['accent'], $html);
         $this->assertStringContainsString('data-motif="wave"', $html);
+        $this->assertStringContainsString('margin-top:-28px', $html);
+        $this->assertStringContainsString('height="56"', $html);
         $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html);
     }
 }

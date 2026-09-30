@@ -14,6 +14,7 @@ class Suggestion extends Model
     protected $fillable = [
         'plan_session_id',
         'payload',
+        'itinerary_content',
         'selected_at',
     ];
 
@@ -21,6 +22,7 @@ class Suggestion extends Model
     {
         return [
             'payload' => 'array',
+            'itinerary_content' => 'array',
             'selected_at' => 'datetime',
         ];
     }

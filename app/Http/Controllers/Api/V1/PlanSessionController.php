@@ -217,6 +217,36 @@ class PlanSessionController extends Controller
         ]);
     }
 
+    public function draftPlan(PlanSession $planSession, Suggestion $suggestion, ItineraryService $itineraryService): JsonResponse
+    {
+        $this->authorize('update', $planSession);
+
+        if ($suggestion->plan_session_id !== $planSession->id) {
+            abort(404);
+        }
+
+        try {
+            $suggestion = $itineraryService->draft($planSession, $suggestion);
+        } catch (RuntimeException|InvalidArgumentException $exception) {
+            Log::warning('plan_session.draft_plan_failed', [
+                'plan_session_uuid' => $planSession->uuid,
+                'suggestion_id' => $suggestion->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Unable to write this plan. Please try again.',
+            ], 502);
+        }
+
+        return response()->json([
+            'data' => [
+                'suggestion' => new SuggestionResource($suggestion),
+            ],
+            'message' => 'Detailed plan ready.',
+        ]);
+    }
+
     public function itinerary(PlanSession $planSession, ItineraryService $itineraryService): JsonResponse
     {
         $this->authorize('update', $planSession);

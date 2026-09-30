@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\BookingConfigController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\EventController;
+use App\Http\Controllers\Api\V1\GeocodeController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PlanLimitController;
@@ -23,6 +24,10 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/health', [HealthController::class, 'show']);
     Route::get('/booking-config', [BookingConfigController::class, 'show']);
     Route::get('/billing-config', [BillingConfigController::class, 'show']);
+    Route::middleware('throttle:geocode')->group(function (): void {
+        Route::get('/geocode/search', [GeocodeController::class, 'search']);
+        Route::get('/geocode/reverse', [GeocodeController::class, 'reverse']);
+    });
 
     Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 
@@ -32,6 +37,8 @@ Route::prefix('v1')->group(function (): void {
         Route::middleware('throttle:auth')->group(function (): void {
             Route::post('/register', [AuthController::class, 'register']);
             Route::post('/login', [AuthController::class, 'login']);
+            Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+            Route::post('/reset-password', [AuthController::class, 'resetPassword']);
         });
 
         Route::middleware('auth:sanctum')->group(function (): void {
@@ -93,6 +100,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/', [PlanSessionController::class, 'show']);
         Route::middleware('throttle:ai')->group(function (): void {
             Route::post('/suggestions', [PlanSessionController::class, 'suggestions']);
+            Route::post('/suggestions/{suggestion}/plan', [PlanSessionController::class, 'draftPlan']);
             Route::post('/refine', [PlanSessionController::class, 'refine']);
             Route::post('/itinerary', [PlanSessionController::class, 'itinerary']);
         });

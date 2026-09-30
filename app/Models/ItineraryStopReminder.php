@@ -25,6 +25,7 @@ class ItineraryStopReminder extends Model
         'recipient_email',
         'plan_type_slug',
         'email_sent_at',
+        'push_sent_at',
     ];
 
     protected function casts(): array
@@ -33,6 +34,7 @@ class ItineraryStopReminder extends Model
             'scheduled_at' => 'datetime',
             'remind_at' => 'datetime',
             'email_sent_at' => 'datetime',
+            'push_sent_at' => 'datetime',
         ];
     }
 

@@ -5,6 +5,8 @@ namespace Tests\Feature\Api\V1;
 use App\Models\Event;
 use App\Models\User;
 use App\Models\WeekendRecommendation;
+use App\Services\AI\Prompts\AbstractPlanPromptBuilder;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -25,6 +27,14 @@ class WeekendRecommendationApiTest extends TestCase
             'services.anthropic.key' => 'test-key',
             'services.anthropic.url' => 'https://api.anthropic.com/v1/messages',
         ]);
+
+        Carbon::setTestNow('2026-09-30 15:00:00');
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     public function test_requires_pro(): void
@@ -136,6 +146,7 @@ class WeekendRecommendationApiTest extends TestCase
 
         $this->assertCount(3, $create->json('data.recommendation.items'));
         $this->assertSame('Denver', $create->json('data.recommendation.city'));
+        $this->assertSame('Saturday in Denver', $create->json('data.recommendation.saturday_plan.title'));
         $this->assertDatabaseHas('events', [
             'city' => 'Denver',
             'title' => 'Downtown Jazz Night',
@@ -151,7 +162,7 @@ class WeekendRecommendationApiTest extends TestCase
     {
         $events = Event::factory()->count(3)->create([
             'city' => 'Austin',
-            'starts_at' => now()->addDays(1),
+            'starts_at' => now()->addDays(2),
         ]);
 
         $payload = [
@@ -179,6 +190,62 @@ class WeekendRecommendationApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.recommendation.city', 'Austin')
             ->assertJsonCount(3, 'data.recommendation.items');
+    }
+
+    public function test_open_to_suggestions_is_sent_only_when_the_chip_is_selected(): void
+    {
+        $events = Event::factory()->count(3)->create([
+            'city' => 'Austin',
+            'starts_at' => now()->addDays(2),
+        ]);
+        $payload = [
+            'recommendations' => $events->map(fn (Event $event) => [
+                'event_id' => $event->id,
+                'reason' => 'Local match',
+            ])->values()->all(),
+        ];
+        $line = AbstractPlanPromptBuilder::OPEN_TO_SUGGESTIONS_LINE;
+
+        Http::fake([
+            'api.anthropic.com/v1/messages' => Http::response([
+                'id' => 'msg_open',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [['type' => 'text', 'text' => json_encode($payload)]],
+            ]),
+        ]);
+
+        Sanctum::actingAs(User::factory()->pro()->create());
+
+        $this->postJson('/api/v1/weekend-recommendations', [
+            'city' => 'Austin',
+            'interests' => ['live music'],
+        ])->assertCreated();
+
+        $this->assertStringNotContainsString($line, $this->recordedAnthropicBodies());
+
+        Http::fake([
+            'api.anthropic.com/v1/messages' => Http::response([
+                'id' => 'msg_open',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [['type' => 'text', 'text' => json_encode($payload)]],
+            ]),
+        ]);
+
+        $this->postJson('/api/v1/weekend-recommendations', [
+            'city' => 'Austin',
+            'interests' => ['Open to suggestions', 'live music'],
+        ])->assertCreated();
+
+        $this->assertStringContainsString($line, $this->recordedAnthropicBodies());
+    }
+
+    private function recordedAnthropicBodies(): string
+    {
+        return collect(Http::recorded())
+            ->map(fn (array $pair): string => (string) $pair[0]->body())
+            ->implode("\n");
     }
 
     public function test_cannot_view_another_users_recommendation(): void

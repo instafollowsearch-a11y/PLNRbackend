@@ -74,6 +74,8 @@ class PlanSessionApiTest extends TestCase
                 'interests' => 'food and architecture',
                 'group_size' => 2,
                 'activity_mix' => 'Active mornings, relax afternoons',
+                'needs_hotel' => 'No',
+                'flying' => 'No',
             ],
             'road_trip' => [
                 'start_location' => 'Austin',
@@ -86,6 +88,7 @@ class PlanSessionApiTest extends TestCase
                 'interests' => 'country music and hiking',
                 'food_preferences' => 'BBQ and diners',
                 'group_size' => 3,
+                'needs_hotel' => 'No',
             ],
             default => [],
         };

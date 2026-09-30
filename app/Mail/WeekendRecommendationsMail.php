@@ -37,6 +37,36 @@ class WeekendRecommendationsMail extends Mailable
         return new Envelope(subject: $subject);
     }
 
+    /**
+     * @return array<string, list<array<string, mixed>>>|null
+     */
+    private function days(): ?array
+    {
+        $grouped = [
+            'Friday' => [],
+            'Saturday' => [],
+            'Sunday' => [],
+        ];
+        $hasWeekendDay = false;
+
+        foreach ($this->recommendation->items ?? [] as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $day = $item['day'] ?? null;
+
+            if (! is_string($day) || ! array_key_exists($day, $grouped)) {
+                continue;
+            }
+
+            $grouped[$day][] = $item;
+            $hasWeekendDay = true;
+        }
+
+        return $hasWeekendDay ? $grouped : null;
+    }
+
     public function content(): Content
     {
         $theme = PlanTypeMailTheme::for('weekend');
@@ -47,6 +77,10 @@ class WeekendRecommendationsMail extends Mailable
                 'theme' => $theme,
                 'recommendation' => $this->recommendation,
                 'items' => $this->recommendation->items ?? [],
+                'days' => $this->days(),
+                'saturdayPlan' => is_array($this->recommendation->saturday_plan)
+                    ? $this->recommendation->saturday_plan
+                    : null,
             ],
         );
     }

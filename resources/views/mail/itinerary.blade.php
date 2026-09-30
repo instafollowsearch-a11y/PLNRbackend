@@ -10,6 +10,10 @@
         </p>
     @endif
 
+    <p style="margin:0 0 16px 0;color:{{ $theme['muted'] }};font-size:14px;">
+        Times are ranges, not exact times. Places and plans can be off. Double-check before you go.
+    </p>
+
     @if (!empty($planSession->city))
         <p style="margin:0 0 20px 0;font-size:14px;">
             <span style="color:{{ $theme['muted'] }};">City</span><br>

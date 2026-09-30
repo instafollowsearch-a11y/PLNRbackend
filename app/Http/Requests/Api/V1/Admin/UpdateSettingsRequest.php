@@ -17,7 +17,7 @@ class UpdateSettingsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'free_plans_per_day' => ['sometimes', 'integer', 'min:0', 'max:1000'],
+            'free_plans_per_month' => ['sometimes', 'integer', 'min:0', 'max:1000'],
             'anthropic_api_key' => ['sometimes', 'nullable', 'string', 'max:500'],
             'anthropic_model' => ['sometimes', 'nullable', 'string', 'max:120'],
             'anthropic_url' => ['sometimes', 'nullable', 'string', 'max:255'],

@@ -11,6 +11,8 @@ class AppSettings
 {
     public const FREE_PLANS_PER_DAY = 'free_plans_per_day';
 
+    public const FREE_PLANS_PER_MONTH = 'free_plans_per_month';
+
     public const ANTHROPIC_API_KEY = 'anthropic_api_key';
 
     public const ANTHROPIC_MODEL = 'anthropic_model';
@@ -163,6 +165,7 @@ class AppSettings
     public function forAdmin(): array
     {
         $settings = $this->all();
+        $settings[self::FREE_PLANS_PER_MONTH] = $this->freePlansPerMonth();
 
         $settings[self::ANTHROPIC_API_KEY.'_set'] = $this->anthropicApiKey() !== null;
         $settings[self::ANTHROPIC_API_KEY.'_source'] = $this->sourceFor(
@@ -307,9 +310,17 @@ class AppSettings
         Cache::forget(self::CACHE_KEY);
     }
 
-    public function freePlansPerDay(): int
+    public function freePlansPerMonth(): int
     {
-        return max(0, $this->getInt(self::FREE_PLANS_PER_DAY, 5));
+        if ($this->hasOverride(self::FREE_PLANS_PER_MONTH)) {
+            return max(0, $this->getInt(self::FREE_PLANS_PER_MONTH, 5));
+        }
+
+        if ($this->hasOverride(self::FREE_PLANS_PER_DAY)) {
+            return max(0, $this->getInt(self::FREE_PLANS_PER_DAY, 5));
+        }
+
+        return 5;
     }
 
     public function anthropicApiKey(): ?string

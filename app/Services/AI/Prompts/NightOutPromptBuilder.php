@@ -22,7 +22,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
     {
         $answers = $session->answers ?? [];
 
-        return implode("\n", $this->appendLocalEventsContext($session, $this->appendRefinementMessages($session, [
+        return implode("\n", $this->withOpenToSuggestions($session, $this->appendLocalEventsContext($session, $this->appendRefinementMessages($session, [
             'Plan type: night out',
             'City: '.($session->city ?? $answers['city'] ?? ''),
             'Interests: '.($answers['interests'] ?? ''),
@@ -30,7 +30,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
             'Budget per person: '.($answers['budget_per_person'] ?? ''),
             'Dates: '.($answers['dates'] ?? ''),
             'Start time: '.($answers['start_time'] ?? ''),
-        ])));
+        ]))));
     }
 
     public function itinerarySystemPrompt(): string
@@ -43,7 +43,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
         $answers = $session->answers ?? [];
         $payload = $suggestion->payload ?? [];
 
-        return implode("\n", [
+        return implode("\n", $this->withOpenToSuggestions($session, [
             'Create a detailed evening itinerary as compact JSON only.',
             'City: '.($session->city ?? $answers['city'] ?? ''),
             'Group size: '.($answers['group_size'] ?? ''),
@@ -54,7 +54,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
             'Description: '.($payload['description'] ?? ''),
             'Time slot: '.($payload['time_slot'] ?? ''),
             'Venues: '.implode(', ', $payload['venues'] ?? []),
-        ]);
+        ]));
     }
 
     public function normalizeSuggestionPayload(array $item): array

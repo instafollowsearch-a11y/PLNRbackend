@@ -5,10 +5,12 @@ namespace App\Services\AI;
 use App\Models\Event;
 use App\Models\User;
 use App\Models\WeekendRecommendation;
+use App\Services\AI\Prompts\AbstractPlanPromptBuilder;
 use App\Services\Events\EventIngestionService;
 use App\Services\Events\EventSourceResolver;
 use App\Services\Events\NormalizedEvent;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -52,8 +54,7 @@ class WeekendRecommendationService
         }
 
         $cityKey = $this->primaryCityName($city);
-        $windowStart = now()->startOfDay();
-        $windowEnd = now()->addDays(7)->endOfDay();
+        [$windowStart, $windowEnd] = $this->comingWeekendWindow();
 
         $this->trySyncLocalCatalog($cityKey);
 
@@ -63,7 +64,12 @@ class WeekendRecommendationService
 
         if ($events->count() >= self::MIN_RECOMMENDATIONS) {
             try {
-                $items = $this->recommendFromCatalog($city, $interests, $windowStart, $windowEnd, $events);
+                $items = $this->coverWeekendDays(
+                    $this->recommendFromCatalog($city, $interests, $windowStart, $windowEnd, $events),
+                    $events,
+                    $windowStart,
+                    $windowEnd,
+                );
             } catch (Throwable $exception) {
                 Log::warning('weekend.catalog_recommend_failed', [
                     'city' => $city,
@@ -87,6 +93,10 @@ class WeekendRecommendationService
             'interests' => $interests,
         ])->save();
 
+        usort($items, function (array $left, array $right): int {
+            return strcmp((string) ($left['starts_at'] ?? ''), (string) ($right['starts_at'] ?? ''));
+        });
+
         return WeekendRecommendation::query()->create([
             'user_id' => $user->id,
             'city' => $cityKey,
@@ -94,7 +104,47 @@ class WeekendRecommendationService
             'window_start' => $windowStart,
             'window_end' => $windowEnd,
             'items' => $items,
+            'saturday_plan' => $this->saturdayPlan($cityKey, $items),
         ]);
+    }
+
+    /**
+     * Friday through Sunday. On Saturday or Sunday, the window starts today.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    public function comingWeekendWindow(): array
+    {
+        $now = now()->timezone((string) config('app.timezone'));
+
+        if ($now->isSunday()) {
+            return [$now->copy()->startOfDay(), $now->copy()->endOfDay()];
+        }
+
+        $start = $now->isFriday() || $now->isSaturday()
+            ? $now->copy()->startOfDay()
+            : $now->copy()->next(Carbon::FRIDAY)->startOfDay();
+        $end = $now->copy()->next(Carbon::SUNDAY)->endOfDay();
+
+        return [$start, $end];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>  $interests
+     * @return array<string, mixed>
+     */
+    private function weekendRequestPayload(array $payload, array $interests): array
+    {
+        foreach ($interests as $interest) {
+            if (str_contains($interest, AbstractPlanPromptBuilder::OPEN_TO_SUGGESTIONS)) {
+                $payload['open_to_suggestions'] = AbstractPlanPromptBuilder::OPEN_TO_SUGGESTIONS_LINE;
+
+                return $payload;
+            }
+        }
+
+        return $payload;
     }
 
     /**
@@ -122,17 +172,17 @@ class WeekendRecommendationService
         $response = $this->client->chat([
             [
                 'role' => 'system',
-                'content' => 'You are PLNR weekend recommender. Pick 3 to 5 real events from the provided catalog that best match the user interests for the upcoming week. Respond ONLY with JSON: {"recommendations":[{"event_id":number,"reason":"short why"}]}. Never invent event_id values.',
+                'content' => 'You are PLNR weekend recommender. Pick 3 to 5 real events from the provided catalog that best match the user interests for the coming Friday, Saturday, and Sunday. Include at least one event on each of those days when the catalog has one. Respond ONLY with JSON: {"recommendations":[{"event_id":number,"reason":"short why"}]}. Never invent event_id values.',
             ],
             [
                 'role' => 'user',
-                'content' => json_encode([
+                'content' => json_encode($this->weekendRequestPayload([
                     'city' => $city,
                     'interests' => $interests,
                     'window_start' => $windowStart->toIso8601String(),
                     'window_end' => $windowEnd->toIso8601String(),
                     'events' => $catalog,
-                ], JSON_THROW_ON_ERROR),
+                ], $interests), JSON_THROW_ON_ERROR),
             ],
         ]);
 
@@ -173,7 +223,7 @@ class WeekendRecommendationService
                 [
                     'role' => 'system',
                     'content' => <<<'PROMPT'
-You are PLNR weekend event scout. You MUST use web search to find real, bookable or RSVP-able local events happening in the user's city during the next seven days.
+You are PLNR weekend event scout. You MUST use web search to find real, bookable or RSVP-able local events happening in the user's city on Friday, Saturday, and Sunday inside the provided window.
 
 Search Eventbrite, Allevents, Luma, Ticketmaster, venue calendars, city event guides, and similar listings. Prefer events that clearly match the user's interests.
 
@@ -182,7 +232,7 @@ Rules:
 - starts_at must fall inside the provided window (ISO-8601 with timezone when known).
 - Prefer official ticket/listing URLs.
 - Never invent fake venues or past events.
-- Return 3 to 5 picks ranked best-match first.
+- Return 3 to 5 picks ranked best-match first, with at least one event on Friday, one on Saturday, and one on Sunday when search results include that day.
 
 Respond ONLY with JSON:
 {"recommendations":[{"title":"string","venue":"string|null","starts_at":"ISO-8601","url":"https://...","source":"eventbrite|allevents|luma|ticketmaster|other","reason":"short why it matches"}]}
@@ -190,7 +240,7 @@ PROMPT,
                 ],
                 [
                     'role' => 'user',
-                    'content' => json_encode([
+                    'content' => json_encode($this->weekendRequestPayload([
                         'city' => $city,
                         'city_key' => $cityKey,
                         'interests' => $interests,
@@ -199,7 +249,7 @@ PROMPT,
                         'today' => now()->toIso8601String(),
                         'known_local_catalog' => $catalogHint,
                         'instructions' => 'Search the open web for upcoming events in this city matching these interests. Ignore known_local_catalog unless it helps avoid duplicates.',
-                    ], JSON_THROW_ON_ERROR),
+                    ], $interests), JSON_THROW_ON_ERROR),
                 ],
             ],
             true,
@@ -343,11 +393,156 @@ PROMPT,
             'title' => $event->title,
             'venue' => $event->venue_name,
             'starts_at' => $event->starts_at?->toIso8601String(),
+            'day' => $this->dayName($event->starts_at),
             'url' => $event->url,
             'image_url' => $event->image_url,
             'source' => $event->source,
             'reason' => $reason !== '' ? $reason : 'Matches your interests.',
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @param  Collection<int, Event>  $events
+     * @return list<array<string, mixed>>
+     */
+    private function coverWeekendDays(array $items, Collection $events, Carbon $windowStart, Carbon $windowEnd): array
+    {
+        foreach ($this->weekendDayNames($windowStart, $windowEnd) as $dayName) {
+            if ($this->itemsIncludeDay($items, $dayName)) {
+                continue;
+            }
+
+            $event = $events->first(function (Event $candidate) use ($dayName, $items): bool {
+                if ($this->dayName($candidate->starts_at) !== $dayName) {
+                    return false;
+                }
+
+                foreach ($items as $item) {
+                    if ((int) ($item['event_id'] ?? 0) === $candidate->id) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+            if (! $event instanceof Event) {
+                continue;
+            }
+
+            $covered = $this->itemFromEvent($event, 'Matches your interests.');
+
+            if (count($items) < self::MAX_RECOMMENDATIONS) {
+                $items[] = $covered;
+
+                continue;
+            }
+
+            foreach ($items as $index => $item) {
+                $itemDay = is_string($item['day'] ?? null) ? $item['day'] : null;
+
+                if ($itemDay !== null && $this->countItemsOnDay($items, $itemDay) > 1) {
+                    $items[$index] = $covered;
+                    break;
+                }
+            }
+        }
+
+        return array_values($items);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return array{title: string, summary: string, stops: list<array{time: string, name: string, detail: string}>}|null
+     */
+    private function saturdayPlan(string $city, array $items): ?array
+    {
+        $saturday = array_values(array_filter(
+            $items,
+            fn (array $item): bool => ($item['day'] ?? null) === 'Saturday',
+        ));
+
+        if ($saturday === []) {
+            return null;
+        }
+
+        $stops = [];
+
+        foreach ($saturday as $item) {
+            $startsAt = $this->parseStartsAt($item['starts_at'] ?? null);
+            $detail = trim((string) ($item['venue'] ?? ''));
+
+            if ($detail === '') {
+                $detail = trim((string) ($item['reason'] ?? ''));
+            }
+
+            $stops[] = [
+                'time' => $startsAt?->timezone((string) config('app.timezone'))->format('g:i A') ?? 'Time TBA',
+                'name' => (string) ($item['title'] ?? 'Stop'),
+                'detail' => $detail,
+            ];
+        }
+
+        $first = (string) ($saturday[0]['title'] ?? 'the first stop');
+        $summary = count($stops) === 1
+            ? 'Saturday starts with '.$first.'.'
+            : 'A Saturday in '.$city.' with '.count($stops).' stops, starting with '.$first.'.';
+
+        return [
+            'title' => 'Saturday in '.$city,
+            'summary' => $summary,
+            'stops' => $stops,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function weekendDayNames(Carbon $windowStart, Carbon $windowEnd): array
+    {
+        $names = [];
+        $cursor = $windowStart->copy()->startOfDay();
+        $last = $windowEnd->copy()->startOfDay();
+
+        while ($cursor->lte($last)) {
+            $names[] = $cursor->format('l');
+            $cursor->addDay();
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     */
+    private function itemsIncludeDay(array $items, string $dayName): bool
+    {
+        return $this->countItemsOnDay($items, $dayName) > 0;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     */
+    private function countItemsOnDay(array $items, string $dayName): int
+    {
+        return count(array_filter(
+            $items,
+            fn (array $item): bool => ($item['day'] ?? null) === $dayName,
+        ));
+    }
+
+    private function dayName(mixed $startsAt): ?string
+    {
+        if (! $startsAt instanceof CarbonInterface) {
+            $startsAt = $this->parseStartsAt($startsAt);
+        }
+
+        if ($startsAt === null) {
+            return null;
+        }
+
+        return $startsAt->timezone((string) config('app.timezone'))->format('l');
     }
 
     private function trySyncLocalCatalog(string $cityKey): void

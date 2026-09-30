@@ -16,6 +16,7 @@ class WeekendRecommendation extends Model
         'window_start',
         'window_end',
         'items',
+        'saturday_plan',
         'email_sent_at',
     ];
 
@@ -24,6 +25,7 @@ class WeekendRecommendation extends Model
         return [
             'interests' => 'array',
             'items' => 'array',
+            'saturday_plan' => 'array',
             'window_start' => 'datetime',
             'window_end' => 'datetime',
             'email_sent_at' => 'datetime',

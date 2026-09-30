@@ -22,7 +22,7 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
     {
         $answers = $session->answers ?? [];
 
-        return implode("\n", $this->appendLocalEventsContext($session, $this->appendRefinementMessages($session, [
+        return implode("\n", $this->withOpenToSuggestions($session, $this->appendLocalEventsContext($session, $this->appendRefinementMessages($session, [
             'Plan type: date night',
             'City: '.($session->city ?? $answers['city'] ?? ''),
             'Self gender: '.($answers['self_gender'] ?? ''),
@@ -31,7 +31,7 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
             'Partner interests: '.($answers['partner_interests'] ?? ''),
             'Budget for the night: '.($answers['budget'] ?? ''),
             'Number of events throughout the day: '.($answers['event_count'] ?? ''),
-        ])));
+        ]))));
     }
 
     public function itinerarySystemPrompt(): string
@@ -43,12 +43,12 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
     {
         $answers = $session->answers ?? [];
 
-        return implode("\n", [
+        return implode("\n", $this->withOpenToSuggestions($session, [
             'Create a full-day romantic date itinerary as compact JSON only.',
             $this->formatAnswers($session),
             $this->formatSuggestionContext($suggestion),
             'Event count requested: '.($answers['event_count'] ?? ''),
-        ]);
+        ]));
     }
 
     public function normalizeSuggestionPayload(array $item): array

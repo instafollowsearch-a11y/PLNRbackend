@@ -2,14 +2,17 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use App\Services\AI\AiChatClient;
 use App\Services\AI\AnthropicClient;
+use App\Services\Settings\AppSettings;
 use App\Services\Bookings\BookingFulfillmentService;
 use App\Services\Bookings\BookingService;
 use App\Services\Bookings\ItineraryScheduleParser;
 use App\Services\Payments\PaymentGateway;
 use App\Services\Payments\PaymentGatewayResolver;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -48,6 +51,16 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
+        ResetPassword::createUrlUsing(function (User $user, string $token): string {
+            $configured = app(AppSettings::class)->webAppUrl() ?: config('services.pro.web_app_url');
+            $base = rtrim(is_string($configured) ? $configured : '', '/');
+
+            return $base.'/reset-password?'.http_build_query([
+                'token' => $token,
+                'email' => $user->getEmailForPasswordReset(),
+            ]);
+        });
+
         RateLimiter::for('api', function (Request $request): Limit {
             return Limit::perMinute((int) config('rate_limiting.api_per_minute'))
                 ->by($request->ip());
@@ -85,6 +98,10 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perHour((int) config('rate_limiting.booking_per_hour'))
                 ->by((string) $key);
+        });
+
+        RateLimiter::for('geocode', function (Request $request): Limit {
+            return Limit::perMinute(30)->by($request->ip());
         });
     }
 }

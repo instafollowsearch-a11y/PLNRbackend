@@ -8,6 +8,10 @@ use App\Services\Events\EventContextService;
 
 abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
 {
+    public const OPEN_TO_SUGGESTIONS = 'Open to suggestions';
+
+    public const OPEN_TO_SUGGESTIONS_LINE = 'The person selected Open to suggestions. They do not know exactly what they want, so mix different kinds of stops. Any other selected interests are only a light lean.';
+
     protected function appendRefinementMessages(PlanSession $session, array $lines): array
     {
         if (! empty($session->refinement_messages)) {
@@ -34,6 +38,80 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @param  array<int, string>  $lines
+     * @return array<int, string>
+     */
+    protected function withOpenToSuggestions(PlanSession $session, array $lines): array
+    {
+        $line = $this->openToSuggestionsLine($session);
+
+        if ($line !== '') {
+            $lines[] = $line;
+        }
+
+        return $lines;
+    }
+
+    protected function openToSuggestionsLine(PlanSession $session): string
+    {
+        foreach ($session->answers ?? [] as $value) {
+            if (is_string($value) && str_contains($value, self::OPEN_TO_SUGGESTIONS)) {
+                return self::OPEN_TO_SUGGESTIONS_LINE;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param  array<int, string>  $lines
+     * @return array<int, string>
+     */
+    protected function withTravelStay(PlanSession $session, array $lines): array
+    {
+        $line = $this->travelStayLine($session);
+
+        if ($line !== '') {
+            $lines[] = $line;
+        }
+
+        return $lines;
+    }
+
+    protected function travelStayLine(PlanSession $session): string
+    {
+        $answers = $session->answers ?? [];
+        $needsHotel = in_array((string) ($answers['needs_hotel'] ?? ''), ['Yes', 'Already booked'], true);
+        $isFlying = (string) ($answers['flying'] ?? '') === 'Yes';
+
+        if (! $needsHotel && ! $isFlying) {
+            return '';
+        }
+
+        $parts = [];
+
+        if ($needsHotel) {
+            $location = trim((string) ($answers['hotel_location'] ?? ''));
+            $shuttle = trim((string) ($answers['hotel_shuttle'] ?? ''));
+            $base = $location !== ''
+                ? 'Use the hotel at '.$location.' as the base for the plan.'
+                : 'Use the hotel as the base for the plan.';
+
+            if ($shuttle !== '') {
+                $base .= ' Account for the hotel shuttle: '.$shuttle.'.';
+            }
+
+            $parts[] = $base;
+        }
+
+        if ($isFlying) {
+            $parts[] = 'They are flying, so account for the flight in the plan.';
+        }
+
+        return implode(' ', $parts);
     }
 
     protected function appendLocalEventsContext(PlanSession $session, array $lines): array

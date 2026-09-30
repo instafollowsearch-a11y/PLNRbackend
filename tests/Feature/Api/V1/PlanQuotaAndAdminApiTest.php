@@ -42,9 +42,9 @@ class PlanQuotaAndAdminApiTest extends TestCase
         ];
     }
 
-    public function test_guest_is_limited_by_ip_per_day(): void
+    public function test_guest_is_limited_by_ip_per_month(): void
     {
-        app(AppSettings::class)->set(AppSettings::FREE_PLANS_PER_DAY, 2);
+        app(AppSettings::class)->set(AppSettings::FREE_PLANS_PER_MONTH, 2);
 
         $this->postJson('/api/v1/plan-sessions', [
             'plan_type' => 'night_out',
@@ -61,12 +61,45 @@ class PlanQuotaAndAdminApiTest extends TestCase
             'answers' => $this->answers(),
         ])
             ->assertStatus(429)
-            ->assertJsonPath('message', 'Daily free plan limit reached. Create an account or try again tomorrow.');
+            ->assertJsonPath('message', 'Monthly free plan limit reached. Create an account or try again next month.')
+            ->assertJsonPath('data.window', 'month');
+    }
+
+    public function test_session_from_last_month_does_not_count(): void
+    {
+        app(AppSettings::class)->set(AppSettings::FREE_PLANS_PER_MONTH, 1);
+
+        PlanSession::factory()->create([
+            'user_id' => null,
+            'creator_ip' => '127.0.0.1',
+            'plan_type_id' => $this->planType->id,
+            'created_at' => now()->startOfMonth()->subDay(),
+        ]);
+
+        $this->postJson('/api/v1/plan-sessions', [
+            'plan_type' => 'night_out',
+            'answers' => $this->answers(),
+        ])->assertCreated();
+    }
+
+    public function test_stored_daily_setting_still_limits_the_month_until_replaced(): void
+    {
+        app(AppSettings::class)->set(AppSettings::FREE_PLANS_PER_DAY, 1);
+
+        $this->postJson('/api/v1/plan-sessions', [
+            'plan_type' => 'night_out',
+            'answers' => $this->answers(),
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/plan-sessions', [
+            'plan_type' => 'night_out',
+            'answers' => $this->answers(),
+        ])->assertStatus(429);
     }
 
     public function test_authenticated_user_is_limited_by_account_not_ip(): void
     {
-        app(AppSettings::class)->set(AppSettings::FREE_PLANS_PER_DAY, 1);
+        app(AppSettings::class)->set(AppSettings::FREE_PLANS_PER_MONTH, 1);
 
         $user = User::factory()->create();
         Sanctum::actingAs($user);
@@ -85,6 +118,24 @@ class PlanQuotaAndAdminApiTest extends TestCase
             'plan_type' => 'night_out',
             'answers' => $this->answers(),
         ])->assertStatus(429);
+    }
+
+    public function test_pro_account_is_not_capped(): void
+    {
+        app(AppSettings::class)->set(AppSettings::FREE_PLANS_PER_MONTH, 1);
+
+        $user = User::factory()->pro()->create();
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/v1/plan-sessions', [
+            'plan_type' => 'night_out',
+            'answers' => $this->answers(),
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/plan-sessions', [
+            'plan_type' => 'night_out',
+            'answers' => $this->answers(),
+        ])->assertCreated();
     }
 
     public function test_user_can_list_and_claim_plan_sessions(): void
@@ -131,12 +182,12 @@ class PlanQuotaAndAdminApiTest extends TestCase
             ->assertJsonPath('data.users_total', 2);
 
         $this->patchJson('/api/v1/admin/settings', [
-            'free_plans_per_day' => 7,
+            'free_plans_per_month' => 7,
             'anthropic_model' => 'claude-test-model',
             'anthropic_api_key' => 'sk-ant-test-secret-key',
         ])
             ->assertOk()
-            ->assertJsonPath('data.settings.free_plans_per_day', 7)
+            ->assertJsonPath('data.settings.free_plans_per_month', 7)
             ->assertJsonPath('data.settings.anthropic_model', 'claude-test-model')
             ->assertJsonPath('data.settings.anthropic_model_source', 'admin')
             ->assertJsonPath('data.settings.anthropic_api_key_set', true)
@@ -180,12 +231,12 @@ class PlanQuotaAndAdminApiTest extends TestCase
 
     public function test_plan_limits_endpoint_returns_remaining(): void
     {
-        app(AppSettings::class)->set(AppSettings::FREE_PLANS_PER_DAY, 5);
+        app(AppSettings::class)->set(AppSettings::FREE_PLANS_PER_MONTH, 5);
 
         $this->getJson('/api/v1/plan-limits')
             ->assertOk()
             ->assertJsonPath('data.limit', 5)
             ->assertJsonPath('data.remaining', 5)
-            ->assertJsonPath('data.window', 'day');
+            ->assertJsonPath('data.window', 'month');
     }
 }

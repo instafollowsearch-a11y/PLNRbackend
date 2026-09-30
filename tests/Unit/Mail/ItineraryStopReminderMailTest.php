@@ -42,6 +42,8 @@ class ItineraryStopReminderMailTest extends TestCase
         $this->assertStringContainsString('PLNR', $html);
         $this->assertStringContainsString($theme['accent'], $html);
         $this->assertStringContainsString('data-motif="heart"', $html);
+        $this->assertStringContainsString('margin-top:-28px', $html);
+        $this->assertStringContainsString('height="64"', $html);
         $this->assertStringContainsString('Wine Bar', $html);
         $this->assertStringContainsString('Tasting flight', $html);
         $this->assertStringContainsString('Austin', $html);

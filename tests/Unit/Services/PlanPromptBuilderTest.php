@@ -4,6 +4,8 @@ namespace Tests\Unit\Services;
 
 use App\Models\PlanSession;
 use App\Models\PlanType;
+use App\Models\Suggestion;
+use App\Services\AI\Prompts\AbstractPlanPromptBuilder;
 use App\Services\AI\Prompts\DateNightPromptBuilder;
 use App\Services\AI\Prompts\NightOutPromptBuilder;
 use App\Services\AI\Prompts\PlanPromptBuilderResolver;
@@ -79,6 +81,46 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertCount(1, $content['days']);
     }
 
+    public function test_vacation_month_prompt_asks_for_one_stop_per_day(): void
+    {
+        $builder = new VacationPromptBuilder;
+        $suggestion = new Suggestion([
+            'payload' => ['name' => 'Month in Barcelona', 'description' => 'A long stay'],
+        ]);
+
+        $jsonPrompt = $builder->itineraryUserPrompt(new PlanSession([
+            'answers' => [
+                'dates' => json_encode(['start' => '2026-09-01', 'end' => '2026-09-30']),
+            ],
+        ]), $suggestion);
+        $displayPrompt = $builder->itineraryUserPrompt(new PlanSession([
+            'answers' => [
+                'dates' => 'September 28 – October 28',
+            ],
+        ]), $suggestion);
+
+        $this->assertStringContainsString('exactly 1 stop', $jsonPrompt);
+        $this->assertStringContainsString('one days entry per day', $jsonPrompt);
+        $this->assertStringContainsString('exactly 1 stop', $displayPrompt);
+        $this->assertStringNotContainsString('3000 tokens', $jsonPrompt);
+        $this->assertStringNotContainsString('3000 tokens', $builder->itinerarySystemPrompt());
+    }
+
+    public function test_vacation_week_prompt_allows_up_to_three_stops(): void
+    {
+        $builder = new VacationPromptBuilder;
+        $prompt = $builder->itineraryUserPrompt(new PlanSession([
+            'answers' => [
+                'dates' => json_encode(['start' => '2026-06-10', 'end' => '2026-06-16']),
+            ],
+        ]), new Suggestion([
+            'payload' => ['name' => 'Week in Barcelona', 'description' => 'A short stay'],
+        ]));
+
+        $this->assertStringContainsString('up to 3 stops', $prompt);
+        $this->assertStringNotContainsString('exactly 1 stop', $prompt);
+    }
+
     public function test_road_trip_builder_normalizes_gas_food_and_stops(): void
     {
         $builder = new RoadTripPromptBuilder;
@@ -100,6 +142,71 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertSame(85.0, $payload['estimated_gas_cost']);
         $this->assertSame(120.0, $payload['estimated_food_cost']);
         $this->assertCount(1, $payload['stops']);
+    }
+
+    public function test_night_out_prompt_mixes_stops_only_when_open_to_suggestions_is_selected(): void
+    {
+        $builder = new NightOutPromptBuilder;
+        $line = AbstractPlanPromptBuilder::OPEN_TO_SUGGESTIONS_LINE;
+        $suggestion = new Suggestion([
+            'payload' => ['name' => 'Jazz Night', 'description' => 'Live music', 'venues' => []],
+        ]);
+        $open = new PlanSession([
+            'answers' => ['interests' => 'Open to suggestions, Live jazz', 'city' => 'Austin'],
+        ]);
+        $jazz = new PlanSession([
+            'answers' => ['interests' => 'Live jazz', 'city' => 'Austin'],
+        ]);
+
+        $this->assertStringContainsString($line, $builder->suggestionUserPrompt($open));
+        $this->assertStringContainsString($line, $builder->itineraryUserPrompt($open, $suggestion));
+        $this->assertStringNotContainsString($line, $builder->suggestionUserPrompt($jazz));
+        $this->assertStringNotContainsString($line, $builder->itineraryUserPrompt($jazz, $suggestion));
+    }
+
+    public function test_vacation_prompt_uses_the_hotel_only_when_a_stay_or_flight_is_answered(): void
+    {
+        $builder = new VacationPromptBuilder;
+        $suggestion = new Suggestion([
+            'payload' => ['name' => 'Week in Barcelona', 'description' => 'A short stay'],
+        ]);
+        $withStay = new PlanSession([
+            'answers' => [
+                'needs_hotel' => 'Yes',
+                'hotel_location' => 'Hotel Arts',
+                'hotel_shuttle' => 'Yes',
+                'flying' => 'Yes',
+            ],
+        ]);
+        $withoutStay = new PlanSession([
+            'answers' => [
+                'destination' => 'Barcelona',
+                'needs_hotel' => 'No',
+                'flying' => 'No',
+            ],
+        ]);
+
+        $prompt = $builder->suggestionUserPrompt($withStay);
+
+        $this->assertStringContainsString('Use the hotel at Hotel Arts as the base for the plan.', $prompt);
+        $this->assertStringContainsString('Account for the hotel shuttle: Yes.', $prompt);
+        $this->assertStringContainsString('They are flying, so account for the flight in the plan.', $prompt);
+        $this->assertStringContainsString('Use the hotel at Hotel Arts as the base for the plan.', $builder->itineraryUserPrompt($withStay, $suggestion));
+        $this->assertStringNotContainsString('as the base for the plan', $builder->suggestionUserPrompt($withoutStay));
+        $this->assertStringNotContainsString('account for the flight', $builder->itineraryUserPrompt($withoutStay, $suggestion));
+    }
+
+    public function test_road_trip_prompt_bases_gas_on_the_car_and_asks_for_a_stay_length(): void
+    {
+        $builder = new RoadTripPromptBuilder;
+        $prompt = $builder->suggestionSystemPrompt();
+
+        $this->assertStringContainsString('estimated_gas_cost', $prompt);
+        $this->assertStringContainsString('Base estimated_gas_cost on the chosen car type.', $prompt);
+        $this->assertStringContainsString('duration is how long to stay, such as 45 min.', $prompt);
+        $this->assertStringContainsString('closing_time is when to be there.', $prompt);
+        $this->assertStringContainsString('time is a clock time.', $builder->itinerarySystemPrompt());
+        $this->assertStringContainsString('The notes include how long to stay.', $builder->itinerarySystemPrompt());
     }
 
     public function test_resolver_returns_builder_for_session_plan_type(): void

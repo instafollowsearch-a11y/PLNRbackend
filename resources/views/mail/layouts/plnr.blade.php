@@ -38,14 +38,14 @@
                 </tr>
 
                 <tr>
-                    <td style="background-color:{{ $theme['softBg'] }};padding:20px 24px 8px 24px;" align="right">
+                    <td style="background-color:{{ $theme['softBg'] }};padding:4px 24px 0 24px;line-height:0;font-size:0;" align="right">
                         @include('mail.motifs.'.$theme['motif'], ['theme' => $theme])
                     </td>
                 </tr>
 
                 <tr>
                     <td style="background-color:{{ $theme['softBg'] }};padding:0 24px 24px 24px;">
-                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:{{ $theme['surface'] }};border:1px solid {{ $theme['border'] }};border-radius:10px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:-28px;background-color:{{ $theme['surface'] }};border:1px solid {{ $theme['border'] }};border-radius:10px;">
                             <tr>
                                 <td style="padding:24px;font-family:Arial,Helvetica,sans-serif;color:{{ $theme['text'] }};font-size:15px;line-height:1.55;">
                                     {{ $slot }}

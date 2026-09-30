@@ -1,5 +1,5 @@
 {{-- Soft moon and arcs for night out --}}
-<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" data-motif="moon">
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64" viewBox="70 8 130 110" data-motif="moon">
   <g fill="none" stroke="{{ $theme['accent'] }}" stroke-opacity="0.18" stroke-width="3">
     <circle cx="140" cy="55" r="28"/>
     <circle cx="152" cy="48" r="28" fill="{{ $theme['softBg'] }}" stroke="none"/>

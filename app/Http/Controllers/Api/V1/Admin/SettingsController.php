@@ -21,8 +21,8 @@ class SettingsController extends Controller
 
     public function update(UpdateSettingsRequest $request, AppSettings $settings): JsonResponse
     {
-        if ($request->exists('free_plans_per_day')) {
-            $settings->set(AppSettings::FREE_PLANS_PER_DAY, $request->integer('free_plans_per_day'));
+        if ($request->exists('free_plans_per_month')) {
+            $settings->set(AppSettings::FREE_PLANS_PER_MONTH, $request->integer('free_plans_per_month'));
         }
 
         $this->applyOptionalString($request, $settings, 'anthropic_api_key', AppSettings::ANTHROPIC_API_KEY, 'clear_anthropic_api_key');

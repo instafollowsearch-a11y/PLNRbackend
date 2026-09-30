@@ -20,6 +20,7 @@ class WeekendRecommendationResource extends JsonResource
             'window_start' => $this->window_start?->toIso8601String(),
             'window_end' => $this->window_end?->toIso8601String(),
             'items' => $this->items ?? [],
+            'saturday_plan' => $this->saturday_plan,
             'email_sent_at' => $this->email_sent_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
         ];

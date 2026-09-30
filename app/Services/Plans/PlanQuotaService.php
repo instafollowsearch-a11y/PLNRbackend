@@ -14,14 +14,14 @@ class PlanQuotaService
         private readonly AppSettings $settings,
     ) {}
 
-    public function dailyLimit(): int
+    public function monthlyLimit(): int
     {
-        return $this->settings->freePlansPerDay();
+        return $this->settings->freePlansPerMonth();
     }
 
-    public function usedToday(?User $user, ?string $ip): int
+    public function usedThisMonth(?User $user, ?string $ip): int
     {
-        $query = PlanSession::query()->where('created_at', '>=', now()->startOfDay());
+        $query = PlanSession::query()->where('created_at', '>=', now()->startOfMonth());
 
         if ($user !== null) {
             $query->where('user_id', $user->id);
@@ -32,34 +32,48 @@ class PlanQuotaService
         return $query->count();
     }
 
-    public function remainingToday(?User $user, ?string $ip): int
+    public function remainingThisMonth(?User $user, ?string $ip): int
     {
-        return max(0, $this->dailyLimit() - $this->usedToday($user, $ip));
+        if ($user?->isPro()) {
+            return $this->monthlyLimit();
+        }
+
+        return max(0, $this->monthlyLimit() - $this->usedThisMonth($user, $ip));
     }
 
     public function hasReachedLimit(?User $user, ?string $ip): bool
     {
-        $limit = $this->dailyLimit();
+        if ($user?->isPro()) {
+            return false;
+        }
+
+        $limit = $this->monthlyLimit();
 
         if ($limit <= 0) {
             return true;
         }
 
-        return $this->usedToday($user, $ip) >= $limit;
+        return $this->usedThisMonth($user, $ip) >= $limit;
     }
 
     public function assertCanCreate(Request $request): void
     {
-        if (! $this->hasReachedLimit($request->user(), $request->ip())) {
+        $user = $request->user();
+
+        if ($user?->isPro()) {
+            return;
+        }
+
+        if (! $this->hasReachedLimit($user, $request->ip())) {
             return;
         }
 
         throw new HttpResponseException(response()->json([
-            'message' => 'Daily free plan limit reached. Create an account or try again tomorrow.',
+            'message' => 'Monthly free plan limit reached. Create an account or try again next month.',
             'data' => [
-                'limit' => $this->dailyLimit(),
+                'limit' => $this->monthlyLimit(),
                 'remaining' => 0,
-                'window' => 'day',
+                'window' => 'month',
             ],
         ], 429));
     }

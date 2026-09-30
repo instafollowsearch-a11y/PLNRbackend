@@ -42,6 +42,8 @@ class BookingReminderMailTest extends TestCase
         $this->assertStringContainsString('Alex', $html);
         $this->assertStringContainsString($theme['accent'], $html);
         $this->assertStringContainsString('data-motif="road"', $html);
+        $this->assertStringContainsString('margin-top:-28px', $html);
+        $this->assertStringContainsString('height="56"', $html);
         $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html);
         $this->assertStringNotContainsString('Laravel Logo', $html);
     }
