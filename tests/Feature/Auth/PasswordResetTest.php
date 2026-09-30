@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Mail\ResetPasswordMail;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -52,11 +53,17 @@ class PasswordResetTest extends TestCase
         Notification::assertSentTo($user, ResetPassword::class, function (ResetPassword $notification) use ($user, &$token): bool {
             $token = $notification->token;
             $mail = $notification->toMail($user);
-            $url = (string) $mail->actionUrl;
+
+            if (! $mail instanceof ResetPasswordMail) {
+                return false;
+            }
+
+            $url = $mail->resetUrl;
 
             return str_contains($url, '/reset-password?')
                 && str_contains($url, 'token=')
-                && str_contains($url, 'email=user%40plnr.test');
+                && str_contains($url, 'email=user%40plnr.test')
+                && str_contains($mail->envelope()->subject, 'Reset your password · ');
         });
 
         Notification::assertSentToTimes($user, ResetPassword::class, 1);

@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Booking;
+use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -19,7 +20,7 @@ class BookingReminderMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Reminder: '.$this->booking->title,
+            subject: MailSubject::stamp('Reminder: '.$this->booking->title),
         );
     }
 

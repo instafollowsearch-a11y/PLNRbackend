@@ -15,6 +15,8 @@ class AppSettings
 
     public const ANTHROPIC_API_KEY = 'anthropic_api_key';
 
+    public const GOOGLE_PLACES_API_KEY = 'google_places_api_key';
+
     public const ANTHROPIC_MODEL = 'anthropic_model';
 
     public const ANTHROPIC_URL = 'anthropic_url';
@@ -55,6 +57,7 @@ class AppSettings
     /** Keys that may be stored as overrides; empty/null means fall back to env. */
     public const OVERRIDABLE = [
         self::ANTHROPIC_API_KEY,
+        self::GOOGLE_PLACES_API_KEY,
         self::ANTHROPIC_MODEL,
         self::ANTHROPIC_URL,
         self::MAIL_FROM_ADDRESS,
@@ -74,6 +77,7 @@ class AppSettings
 
     public const SECRETS = [
         self::ANTHROPIC_API_KEY,
+        self::GOOGLE_PLACES_API_KEY,
         self::STRIPE_SECRET,
         self::STRIPE_WEBHOOK_SECRET,
     ];
@@ -173,6 +177,13 @@ class AppSettings
             config('services.anthropic.key'),
         );
         $settings[self::ANTHROPIC_API_KEY.'_hint'] = $this->maskSecret($this->anthropicApiKey());
+
+        $settings[self::GOOGLE_PLACES_API_KEY.'_set'] = $this->googlePlacesApiKey() !== null;
+        $settings[self::GOOGLE_PLACES_API_KEY.'_source'] = $this->sourceFor(
+            self::GOOGLE_PLACES_API_KEY,
+            config('services.google.places_key'),
+        );
+        $settings[self::GOOGLE_PLACES_API_KEY.'_hint'] = $this->maskSecret($this->googlePlacesApiKey());
 
         $settings[self::ANTHROPIC_MODEL] = $this->anthropicModel();
         $settings[self::ANTHROPIC_MODEL.'_source'] = $this->sourceFor(
@@ -326,6 +337,16 @@ class AppSettings
     public function anthropicApiKey(): ?string
     {
         return $this->resolveString(self::ANTHROPIC_API_KEY, config('services.anthropic.key'));
+    }
+
+    public function googlePlacesApiKey(): ?string
+    {
+        $fallback = config('services.google.places_key');
+
+        return $this->resolveString(
+            self::GOOGLE_PLACES_API_KEY,
+            is_string($fallback) ? $fallback : null,
+        );
     }
 
     public function anthropicModel(): string

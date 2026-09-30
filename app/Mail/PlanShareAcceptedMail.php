@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\PlanShare;
 use App\Models\User;
+use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -24,7 +25,7 @@ class PlanShareAcceptedMail extends Mailable
     {
         $settings = app(\App\Services\Settings\AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
-        $subject = $this->acceptedBy->name.' accepted your plan invite';
+        $subject = MailSubject::stamp($this->acceptedBy->name.' accepted your plan invite');
 
         if ($fromAddress) {
             return new Envelope(

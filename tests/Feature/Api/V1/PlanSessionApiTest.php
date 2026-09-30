@@ -3,8 +3,10 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Mail\ItineraryMail;
+use App\Models\Itinerary;
 use App\Models\PlanSession;
 use App\Models\PlanType;
+use App\Models\Suggestion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -301,5 +303,124 @@ class PlanSessionApiTest extends TestCase
     {
         $this->getJson('/api/v1/plan-sessions/00000000-0000-0000-0000-000000000099')
             ->assertNotFound();
+    }
+
+    public function test_follow_up_replaces_ideas_and_keeps_the_saved_itinerary(): void
+    {
+        Http::fake([
+            config('services.anthropic.url') => Http::sequence()
+                ->push($this->anthropicResponseFromOpenAiFixture('suggestions_response.json'))
+                ->push($this->anthropicResponseFromOpenAiFixture('suggestions_response.json')),
+        ]);
+
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $session = PlanSession::factory()->create([
+            'user_id' => $user->id,
+            'plan_type_id' => $this->planTypes['night_out']->id,
+            'status' => PlanSession::STATUS_ITINERARY,
+            'city' => 'Austin',
+            'answers' => $this->validAnswers('night_out'),
+        ]);
+        $previous = Suggestion::factory()->create([
+            'plan_session_id' => $session->id,
+            'payload' => ['name' => 'Jazz Crawl'],
+        ]);
+        $itinerary = Itinerary::factory()->create([
+            'plan_session_id' => $session->id,
+            'content' => [
+                'title' => 'Jazz Crawl',
+                'stops' => [
+                    ['time' => '8:00 PM', 'name' => 'Elephant Room', 'activity' => 'Live jazz'],
+                ],
+            ],
+        ]);
+
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/refine", [
+            'message' => 'Something cheaper',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('suggestions', ['id' => $previous->id]);
+        $this->assertSame($itinerary->id, $session->fresh()->itinerary?->id);
+        $this->assertSame(PlanSession::STATUS_ITINERARY, $session->fresh()->status);
+        $this->assertSame(
+            ['Something cheaper'],
+            collect($session->fresh()->refinement_messages)->pluck('content')->all(),
+        );
+        $this->assertTrue(
+            $session->fresh()->suggestions->contains(
+                fn (Suggestion $suggestion): bool => ($suggestion->payload['name'] ?? null) === 'Jazz and Bites',
+            ),
+        );
+
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/refine", [
+            'message' => 'More low-key',
+        ])->assertOk();
+
+        $this->assertSame($itinerary->id, $session->fresh()->itinerary?->id);
+        $this->assertSame(
+            ['Something cheaper', 'More low-key'],
+            collect($session->fresh()->refinement_messages)->pluck('content')->all(),
+        );
+
+        $recorded = Http::recorded();
+        $firstPrompt = $this->anthropicUserPrompt($recorded[0][0]->data());
+        $secondPrompt = $this->anthropicUserPrompt($recorded[1][0]->data());
+
+        $this->assertStringContainsString('Something cheaper', $firstPrompt);
+        $this->assertStringContainsString('Jazz Crawl', $firstPrompt);
+        $this->assertStringContainsString('Elephant Room', $firstPrompt);
+        $this->assertStringContainsString('Keep the city, date, group size, and budget', $firstPrompt);
+        $this->assertStringContainsString('Something cheaper', $secondPrompt);
+        $this->assertStringContainsString('More low-key', $secondPrompt);
+        $this->assertStringContainsString('Elephant Room', $secondPrompt);
+    }
+
+    public function test_failed_follow_up_keeps_the_current_ideas_and_drops_the_note(): void
+    {
+        Http::fake([
+            config('services.anthropic.url') => Http::response(['error' => 'unavailable'], 500),
+        ]);
+
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $session = PlanSession::factory()->create([
+            'user_id' => $user->id,
+            'plan_type_id' => $this->planTypes['night_out']->id,
+            'status' => PlanSession::STATUS_SUGGESTIONS,
+            'city' => 'Austin',
+            'answers' => $this->validAnswers('night_out'),
+        ]);
+        $previous = Suggestion::factory()->create([
+            'plan_session_id' => $session->id,
+            'payload' => ['name' => 'Jazz Crawl'],
+        ]);
+
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/refine", [
+            'message' => 'Something cheaper',
+        ])->assertStatus(502);
+
+        $this->assertDatabaseHas('suggestions', ['id' => $previous->id]);
+        $this->assertSame([], $session->fresh()->refinement_messages ?? []);
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     */
+    private function anthropicUserPrompt(array $body): string
+    {
+        $messages = $body['messages'] ?? [];
+
+        if (! is_array($messages)) {
+            return '';
+        }
+
+        foreach ($messages as $message) {
+            if (is_array($message) && ($message['role'] ?? '') === 'user' && is_string($message['content'] ?? null)) {
+                return $message['content'];
+            }
+        }
+
+        return '';
     }
 }

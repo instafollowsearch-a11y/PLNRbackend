@@ -2,10 +2,11 @@
 
 namespace App\Providers;
 
+use App\Mail\ResetPasswordMail;
 use App\Models\User;
+use App\Support\Auth\PasswordResetUrl;
 use App\Services\AI\AiChatClient;
 use App\Services\AI\AnthropicClient;
-use App\Services\Settings\AppSettings;
 use App\Services\Bookings\BookingFulfillmentService;
 use App\Services\Bookings\BookingService;
 use App\Services\Bookings\ItineraryScheduleParser;
@@ -51,14 +52,13 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
-        ResetPassword::createUrlUsing(function (User $user, string $token): string {
-            $configured = app(AppSettings::class)->webAppUrl() ?: config('services.pro.web_app_url');
-            $base = rtrim(is_string($configured) ? $configured : '', '/');
+        ResetPassword::createUrlUsing(fn (User $user, string $token): string => PasswordResetUrl::for($user, $token));
 
-            return $base.'/reset-password?'.http_build_query([
-                'token' => $token,
-                'email' => $user->getEmailForPasswordReset(),
-            ]);
+        ResetPassword::toMailUsing(function (User $user, string $token): ResetPasswordMail {
+            return new ResetPasswordMail(
+                $user->getEmailForPasswordReset(),
+                PasswordResetUrl::for($user, $token),
+            );
         });
 
         RateLimiter::for('api', function (Request $request): Limit {

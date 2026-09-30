@@ -19,6 +19,7 @@ class UpdateSettingsRequest extends FormRequest
         return [
             'free_plans_per_month' => ['sometimes', 'integer', 'min:0', 'max:1000'],
             'anthropic_api_key' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'google_places_api_key' => ['sometimes', 'nullable', 'string', 'max:500'],
             'anthropic_model' => ['sometimes', 'nullable', 'string', 'max:120'],
             'anthropic_url' => ['sometimes', 'nullable', 'string', 'max:255'],
             'mail_from_address' => ['sometimes', 'nullable', 'string', 'max:255', 'email'],
@@ -35,6 +36,7 @@ class UpdateSettingsRequest extends FormRequest
             'stripe_webhook_secret' => ['sometimes', 'nullable', 'string', 'max:255'],
             'stripe_fake' => ['sometimes', 'boolean'],
             'clear_anthropic_api_key' => ['sometimes', 'boolean'],
+            'clear_google_places_api_key' => ['sometimes', 'boolean'],
             'clear_anthropic_model' => ['sometimes', 'boolean'],
             'clear_anthropic_url' => ['sometimes', 'boolean'],
             'clear_mail_from_address' => ['sometimes', 'boolean'],

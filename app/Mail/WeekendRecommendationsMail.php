@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\WeekendRecommendation;
+use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -22,7 +23,7 @@ class WeekendRecommendationsMail extends Mailable
     {
         $settings = app(\App\Services\Settings\AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
-        $subject = 'Your weekend picks in '.$this->recommendation->city;
+        $subject = MailSubject::stamp('Your weekend picks in '.$this->recommendation->city);
 
         if ($fromAddress) {
             return new Envelope(

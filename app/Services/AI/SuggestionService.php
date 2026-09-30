@@ -37,27 +37,34 @@ class SuggestionService
             throw new InvalidArgumentException('AI response missing suggestions array.');
         }
 
-        $session->suggestions()->delete();
-
-        $suggestions = collect();
+        $payloads = [];
 
         foreach ($response['suggestions'] as $item) {
             if (! is_array($item)) {
                 continue;
             }
 
-            $payload = $builder->normalizeSuggestionPayload($item);
+            $payloads[] = $builder->normalizeSuggestionPayload($item);
+        }
 
+        if ($payloads === []) {
+            throw new InvalidArgumentException('No valid suggestions were generated.');
+        }
+
+        $keepsSavedPlan = $session->itinerary()->exists();
+        $session->suggestions()->delete();
+
+        $suggestions = collect();
+
+        foreach ($payloads as $payload) {
             $suggestions->push($session->suggestions()->create([
                 'payload' => $payload,
             ]));
         }
 
-        if ($suggestions->isEmpty()) {
-            throw new InvalidArgumentException('No valid suggestions were generated.');
+        if (! $keepsSavedPlan) {
+            $session->markStatus(PlanSession::STATUS_SUGGESTIONS);
         }
-
-        $session->markStatus(PlanSession::STATUS_SUGGESTIONS);
 
         return $suggestions;
     }

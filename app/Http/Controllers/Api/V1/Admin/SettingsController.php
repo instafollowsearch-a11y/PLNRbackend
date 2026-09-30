@@ -26,6 +26,7 @@ class SettingsController extends Controller
         }
 
         $this->applyOptionalString($request, $settings, 'anthropic_api_key', AppSettings::ANTHROPIC_API_KEY, 'clear_anthropic_api_key');
+        $this->applyOptionalString($request, $settings, 'google_places_api_key', AppSettings::GOOGLE_PLACES_API_KEY, 'clear_google_places_api_key');
         $this->applyOptionalString($request, $settings, 'anthropic_model', AppSettings::ANTHROPIC_MODEL, 'clear_anthropic_model');
         $this->applyOptionalString($request, $settings, 'anthropic_url', AppSettings::ANTHROPIC_URL, 'clear_anthropic_url');
         $this->applyOptionalString($request, $settings, 'mail_from_address', AppSettings::MAIL_FROM_ADDRESS, 'clear_mail_from_address');

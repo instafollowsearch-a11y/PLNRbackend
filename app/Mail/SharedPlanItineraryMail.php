@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\Itinerary;
 use App\Models\PlanSession;
 use App\Models\User;
+use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -27,7 +28,7 @@ class SharedPlanItineraryMail extends Mailable
         $settings = app(\App\Services\Settings\AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
         $title = $this->itinerary->content['title'] ?? 'Shared PLNR plan';
-        $subject = ($this->sharedBy?->name ?? 'A friend').' shared: '.$title;
+        $subject = MailSubject::stamp(($this->sharedBy?->name ?? 'A friend').' shared: '.$title);
 
         if ($fromAddress) {
             return new Envelope(

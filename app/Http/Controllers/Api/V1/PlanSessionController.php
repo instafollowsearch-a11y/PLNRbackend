@@ -170,8 +170,9 @@ class PlanSessionController extends Controller
         $planSession->addRefinementMessage($request->string('message')->toString());
 
         try {
-            $suggestions = $suggestionService->generate($planSession);
+            $suggestions = $suggestionService->generate($planSession->fresh() ?? $planSession);
         } catch (RuntimeException|InvalidArgumentException $exception) {
+            $planSession->removeLastRefinementMessage();
             Log::warning('plan_session.refine_failed', [
                 'plan_session_uuid' => $planSession->uuid,
                 'error' => $exception->getMessage(),

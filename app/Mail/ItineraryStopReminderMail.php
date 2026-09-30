@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\ItineraryStopReminder;
+use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -19,7 +20,7 @@ class ItineraryStopReminderMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Upcoming: '.$this->reminder->stop_name,
+            subject: MailSubject::stamp('Upcoming: '.$this->reminder->stop_name),
         );
     }
 

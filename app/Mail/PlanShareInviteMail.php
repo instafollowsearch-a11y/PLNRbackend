@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\PlanShare;
+use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -27,7 +28,7 @@ class PlanShareInviteMail extends Mailable
         $inviter = $this->share->inviter?->name ?? 'Someone';
         $settings = app(\App\Services\Settings\AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
-        $subject = $inviter.' shared a PLNR plan with you';
+        $subject = MailSubject::stamp($inviter.' shared a PLNR plan with you');
 
         if ($fromAddress) {
             return new Envelope(

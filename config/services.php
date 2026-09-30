@@ -91,4 +91,8 @@ return [
         'user_agent' => env('NOMINATIM_USER_AGENT', 'PLNR/1.0 (https://plnr.app)'),
     ],
 
+    'google' => [
+        'places_key' => env('GOOGLE_PLACES_API_KEY'),
+    ],
+
 ];

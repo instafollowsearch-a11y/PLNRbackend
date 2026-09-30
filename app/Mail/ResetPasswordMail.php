@@ -2,59 +2,56 @@
 
 namespace App\Mail;
 
-use App\Models\Itinerary;
-use App\Models\PlanSession;
+use App\Services\Settings\AppSettings;
 use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class ItineraryMail extends Mailable
+class ResetPasswordMail extends Mailable
 {
     use Queueable, SerializesModels;
 
     public function __construct(
-        public PlanSession $planSession,
-        public Itinerary $itinerary,
+        public string $email,
+        public string $resetUrl,
     ) {}
 
     public function envelope(): Envelope
     {
-        $title = MailSubject::stamp($this->itinerary->content['title'] ?? 'Your PLNR Itinerary');
-        $settings = app(\App\Services\Settings\AppSettings::class);
+        $settings = app(AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
+        $subject = MailSubject::stamp('Reset your password');
 
         if ($fromAddress) {
             return new Envelope(
-                subject: $title,
-                from: new \Illuminate\Mail\Mailables\Address(
+                subject: $subject,
+                from: new Address(
                     $fromAddress,
                     $settings->mailFromName() ?? (string) config('mail.from.name'),
                 ),
+                to: [$this->email],
             );
         }
 
         return new Envelope(
-            subject: $title,
+            subject: $subject,
+            to: [$this->email],
         );
     }
 
     public function content(): Content
     {
-        $this->planSession->loadMissing('planType');
-        $slug = $this->planSession->planType?->slug;
-        $theme = PlanTypeMailTheme::for($slug);
-
         return new Content(
-            view: 'mail.itinerary',
+            view: 'mail.reset-password',
             with: [
-                'planSession' => $this->planSession,
-                'itinerary' => $this->itinerary,
-                'content' => $this->itinerary->content ?? [],
-                'theme' => $theme,
+                'theme' => PlanTypeMailTheme::brand(),
+                'email' => $this->email,
+                'resetUrl' => $this->resetUrl,
             ],
         );
     }

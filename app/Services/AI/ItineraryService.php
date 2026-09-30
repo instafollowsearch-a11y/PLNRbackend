@@ -6,12 +6,14 @@ use App\Models\Itinerary;
 use App\Models\PlanSession;
 use App\Models\Suggestion;
 use App\Services\AI\Prompts\PlanPromptBuilderResolver;
+use App\Services\Places\PlaceListingLookup;
 
 class ItineraryService
 {
     public function __construct(
         private readonly AiChatClient $client,
         private readonly PlanPromptBuilderResolver $promptBuilderResolver,
+        private readonly PlaceListingLookup $placeListingLookup,
     ) {}
 
     public function draft(PlanSession $session, Suggestion $suggestion): Suggestion
@@ -62,7 +64,10 @@ class ItineraryService
             ],
         ], true, 8192);
 
-        return $builder->normalizeItineraryContent($response);
+        return $this->placeListingLookup->enrich(
+            $builder->normalizeItineraryContent($response),
+            is_string($session->city) ? $session->city : null,
+        );
     }
 
     private function hasDraft(Suggestion $suggestion): bool

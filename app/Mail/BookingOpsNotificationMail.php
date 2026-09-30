@@ -3,6 +3,8 @@
 namespace App\Mail;
 
 use App\Models\Booking;
+use App\Support\Mail\MailSubject;
+use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -18,14 +20,18 @@ class BookingOpsNotificationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'New PLNR booking: '.$this->booking->title,
+            subject: MailSubject::stamp('New PLNR booking: '.$this->booking->title),
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            view: 'emails.booking-ops-notification',
+            view: 'mail.booking-ops-notification',
+            with: [
+                'theme' => PlanTypeMailTheme::brand(),
+                'booking' => $this->booking,
+            ],
         );
     }
 }

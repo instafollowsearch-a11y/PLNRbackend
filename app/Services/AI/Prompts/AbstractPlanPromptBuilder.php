@@ -14,16 +14,114 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
 
     protected function appendRefinementMessages(PlanSession $session, array $lines): array
     {
-        if (! empty($session->refinement_messages)) {
-            $lines[] = 'User refinement requests:';
-            foreach ($session->refinement_messages as $message) {
-                if (($message['role'] ?? '') === 'user') {
-                    $lines[] = '- '.($message['content'] ?? '');
+        $requests = [];
+
+        foreach ($session->refinement_messages ?? [] as $message) {
+            if (($message['role'] ?? '') === 'user' && is_string($message['content'] ?? null) && $message['content'] !== '') {
+                $requests[] = $message['content'];
+            }
+        }
+
+        if ($requests === []) {
+            return $lines;
+        }
+
+        $lines[] = 'The person already has a plan. Keep the city, date, group size, and budget unless their note changes those.';
+
+        $ideaNames = [];
+
+        foreach ($session->suggestions as $suggestion) {
+            $payload = $suggestion->payload;
+            $name = is_array($payload) ? ($payload['name'] ?? $payload['title'] ?? null) : null;
+
+            if (is_string($name) && $name !== '') {
+                $ideaNames[] = $name;
+            }
+        }
+
+        if ($ideaNames !== []) {
+            $lines[] = 'Current ideas: '.implode('; ', $ideaNames);
+        }
+
+        $stopNames = $this->savedPlanStopNames($session);
+
+        if ($stopNames !== []) {
+            $lines[] = 'Saved plan stops: '.implode('; ', $stopNames);
+        }
+
+        $lines[] = 'User refinement requests:';
+
+        foreach ($requests as $request) {
+            $lines[] = '- '.$request;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function savedPlanStopNames(PlanSession $session): array
+    {
+        $content = $session->itinerary?->content;
+
+        if (! is_array($content)) {
+            return [];
+        }
+
+        $names = [];
+
+        foreach ($this->itineraryStopLists($content) as $stop) {
+            $name = $stop['name'] ?? null;
+
+            if (is_string($name) && $name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param  array<string, mixed>  $content
+     * @return list<array<string, mixed>>
+     */
+    private function itineraryStopLists(array $content): array
+    {
+        $stops = [];
+        $listedStops = $content['stops'] ?? [];
+
+        if (is_array($listedStops)) {
+            foreach ($listedStops as $stop) {
+                if (is_array($stop)) {
+                    $stops[] = $stop;
                 }
             }
         }
 
-        return $lines;
+        $days = $content['days'] ?? [];
+
+        if (is_array($days)) {
+            foreach ($days as $day) {
+                if (! is_array($day)) {
+                    continue;
+                }
+
+                $dayStops = $day['stops'] ?? [];
+
+                if (! is_array($dayStops)) {
+                    continue;
+                }
+
+                foreach ($dayStops as $stop) {
+                    if (is_array($stop)) {
+                        $stops[] = $stop;
+                    }
+                }
+            }
+        }
+
+        return $stops;
     }
 
     protected function formatAnswers(PlanSession $session): string

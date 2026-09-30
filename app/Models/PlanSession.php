@@ -167,6 +167,18 @@ class PlanSession extends Model
         $this->update(['refinement_messages' => $messages]);
     }
 
+    public function removeLastRefinementMessage(): void
+    {
+        $messages = $this->refinement_messages ?? [];
+
+        if ($messages === []) {
+            return;
+        }
+
+        array_pop($messages);
+        $this->update(['refinement_messages' => array_values($messages)]);
+    }
+
     public function refinementCount(): int
     {
         return count($this->refinement_messages ?? []);

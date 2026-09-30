@@ -58,7 +58,7 @@
                 <tr>
                     <td style="padding:8px 32px 28px 32px;background-color:{{ $theme['softBg'] }};">
                         <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:{{ $theme['muted'] }};text-align:center;">
-                            Enjoy your plan.<br>
+                            {{ $closing ?? 'Enjoy your plan.' }}<br>
                             <span style="font-family:Georgia,'Times New Roman',serif;font-weight:700;letter-spacing:0.08em;color:{{ $theme['accent'] }};">PLNR</span>
                             <span> · {{ date('Y') }}</span>
                         </p>

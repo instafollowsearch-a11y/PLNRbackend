@@ -53,6 +53,10 @@ class ItineraryMailTest extends TestCase
         $html = (new ItineraryMail($session, $itinerary))->render();
         $theme = PlanTypeMailTheme::for('night_out');
 
+        $this->assertStringStartsWith(
+            'Saturday Night Out in Austin · ',
+            (new ItineraryMail($session, $itinerary))->envelope()->subject,
+        );
         $this->assertStringContainsString('PLNR', $html);
         $this->assertStringContainsString(
             'Times are ranges, not exact times. Places and plans can be off. Double-check before you go.',

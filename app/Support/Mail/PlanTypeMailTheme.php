@@ -98,6 +98,38 @@ final class PlanTypeMailTheme
         };
     }
 
+    /**
+     * Shared PLNR brand for account mail. Plan messages keep {@see self::for()}.
+     *
+     * @return array{
+     *     slug: string,
+     *     label: string,
+     *     accent: string,
+     *     accentSoft: string,
+     *     surface: string,
+     *     softBg: string,
+     *     text: string,
+     *     muted: string,
+     *     border: string,
+     *     motif: string
+     * }
+     */
+    public static function brand(): array
+    {
+        return [
+            'slug' => 'account',
+            'label' => 'PLNR',
+            'accent' => '#D4622A',
+            'accentSoft' => '#F5D4C0',
+            'surface' => '#FFFFFF',
+            'softBg' => '#FBF3ED',
+            'text' => '#1A1A1A',
+            'muted' => '#6B5C52',
+            'border' => '#E4DDD4',
+            'motif' => 'moon',
+        ];
+    }
+
     public static function accent(?string $slug): string
     {
         return self::for($slug)['accent'];
