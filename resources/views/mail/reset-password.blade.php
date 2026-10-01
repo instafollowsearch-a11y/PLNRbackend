@@ -1,4 +1,5 @@
 @component('mail.layouts.plnr', [
+    'message' => $message ?? null,
     'theme' => $theme,
     'title' => 'Reset your password',
     'heroEyebrow' => 'Account',

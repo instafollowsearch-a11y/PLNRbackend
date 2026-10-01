@@ -1,4 +1,5 @@
 @component('mail.layouts.plnr', [
+    'message' => $message ?? null,
     'theme' => $theme,
     'title' => 'Weekend picks in '.$recommendation->city,
     'heroEyebrow' => 'Weekend picks',

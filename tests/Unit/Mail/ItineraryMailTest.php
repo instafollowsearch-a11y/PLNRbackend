@@ -58,6 +58,9 @@ class ItineraryMailTest extends TestCase
             (new ItineraryMail($session, $itinerary))->envelope()->subject,
         );
         $this->assertStringContainsString('PLNR', $html);
+        $this->assertStringContainsString('<img', $html);
+        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('width="120"', $html);
         $this->assertStringContainsString(
             'Times are ranges, not exact times. Places and plans can be off. Double-check before you go.',
             $html,

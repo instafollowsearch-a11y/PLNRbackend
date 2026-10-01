@@ -1,4 +1,5 @@
 @component('mail.layouts.plnr', [
+    'message' => $message ?? null,
     'theme' => $theme,
     'title' => 'Plan invite accepted',
     'heroEyebrow' => 'Shared plan',

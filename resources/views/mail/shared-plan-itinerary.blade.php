@@ -1,4 +1,5 @@
 @component('mail.layouts.plnr', [
+    'message' => $message ?? null,
     'theme' => $theme,
     'title' => $content['title'] ?? 'Shared PLNR plan',
     'heroEyebrow' => 'Shared with you',

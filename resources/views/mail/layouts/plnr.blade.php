@@ -11,13 +11,32 @@
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:{{ $theme['softBg'] }};padding:24px 12px;">
     <tr>
         <td align="center">
-            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:{{ $theme['surface'] }};border:1px solid {{ $theme['border'] }};border-radius:12px;overflow:hidden;">
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:{{ $theme['surface'] }};border:1px solid {{ $theme['border'] }};border-radius:12px;">
                 <tr>
                     <td style="background-color:{{ $theme['accent'] }};padding:28px 32px 24px 32px;">
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                             <tr>
-                                <td style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;letter-spacing:0.1em;color:#FFFFFF;">
-                                    PLNR
+                                <td style="line-height:44px;font-size:16px;">
+                                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                            <td bgcolor="#FFFFFF" style="background-color:#FFFFFF;border-radius:8px;padding:6px 10px;line-height:44px;font-size:16px;">
+                                                @php
+                                                    $plnrLogoFile = public_path('images/plnr-logo-email.png');
+                                                    if (! is_file($plnrLogoFile)) {
+                                                        $plnrLogoFile = public_path('images/plnr-logo-black-lettering.png');
+                                                    }
+                                                    $plnrLogo = (isset($message) && is_object($message) && is_file($plnrLogoFile))
+                                                        ? $message->embed($plnrLogoFile)
+                                                        : null;
+                                                @endphp
+                                                @if ($plnrLogo)
+                                                    <img src="{{ $plnrLogo }}" alt="PLNR" width="120" height="44" style="display:block;border:0;outline:none;text-decoration:none;width:120px;height:44px;background-color:#FFFFFF;">
+                                                @else
+                                                    <span style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:700;letter-spacing:0.1em;line-height:44px;color:#1A1A1A;">PLNR</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    </table>
                                 </td>
                                 <td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#FFFFFF;">
                                     {{ $theme['label'] }}

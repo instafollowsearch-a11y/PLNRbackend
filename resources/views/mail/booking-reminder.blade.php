@@ -1,4 +1,5 @@
 @component('mail.layouts.plnr', [
+    'message' => $message ?? null,
     'theme' => $theme,
     'title' => 'Reminder: '.$booking->title,
     'heroEyebrow' => $theme['label'].' reminder',
