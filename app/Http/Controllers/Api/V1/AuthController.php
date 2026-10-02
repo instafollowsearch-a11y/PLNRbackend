@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\ChangePasswordRequest;
 use App\Http\Requests\Api\V1\ForgotPasswordRequest;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Requests\Api\V1\RegisterRequest;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -142,6 +144,14 @@ class AuthController extends Controller
         $user = $request->user();
         $payload = [];
 
+        if ($request->exists('name')) {
+            $payload['name'] = $request->string('name')->toString();
+        }
+
+        if ($request->exists('email')) {
+            $payload['email'] = $request->string('email')->toString();
+        }
+
         if ($request->exists('city')) {
             $payload['city'] = $request->string('city')->toString();
         }
@@ -159,6 +169,26 @@ class AuthController extends Controller
                 'user' => new UserResource($user->fresh()),
             ],
             'message' => 'Profile updated successfully.',
+        ]);
+    }
+
+    public function changePassword(ChangePasswordRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $user->update([
+            'password' => $request->string('password')->toString(),
+        ]);
+
+        $currentToken = $user->currentAccessToken();
+        $tokens = $user->tokens();
+        if ($currentToken instanceof PersonalAccessToken) {
+            $tokens->whereKeyNot($currentToken->getKey());
+        }
+        $tokens->delete();
+
+        return response()->json([
+            'data' => null,
+            'message' => 'Password updated.',
         ]);
     }
 }

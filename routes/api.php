@@ -51,7 +51,10 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/user', [AuthController::class, 'user']);
-        Route::patch('/user', [AuthController::class, 'update']);
+        Route::middleware('throttle:auth')->group(function (): void {
+            Route::patch('/user', [AuthController::class, 'update']);
+            Route::post('/user/password', [AuthController::class, 'changePassword']);
+        });
         Route::get('/events', [EventController::class, 'index']);
         Route::get('/plan-sessions', [PlanSessionController::class, 'index']);
         Route::post('/plan-sessions/{planSession}/claim', [PlanSessionController::class, 'claim']);
