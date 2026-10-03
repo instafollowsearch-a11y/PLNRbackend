@@ -31,17 +31,26 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return 'You are a vacation itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), days (array of objects with date, theme, stops where each stop has time, name, activity, and notes).';
+        return 'You are a vacation itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), days (array of objects with date, theme, stops where each stop has time, name, activity, notes, and cost_per_person). cost_per_person is an estimated number for one person. Omit cost_per_person when you do not have an estimate. Use the year from the travel dates on every day label.';
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string
     {
-        return implode("\n", $this->withTravelStay($session, $this->withOpenToSuggestions($session, [
+        $lines = [
             'Create a multi-day vacation itinerary as compact JSON only.',
             $this->itineraryLengthInstruction($session),
-            $this->formatAnswers($session),
-            $this->formatSuggestionContext($suggestion),
-        ])));
+        ];
+        $range = $this->tripRange($session);
+
+        if ($range !== null) {
+            [$start, $end] = $range;
+            $lines[] = 'Travel dates are '.$start->toDateString().' through '.$end->toDateString().'. Use year '.$start->year.' on every day label.';
+        }
+
+        $lines[] = $this->formatAnswers($session);
+        $lines[] = $this->formatSuggestionContext($suggestion);
+
+        return implode("\n", $this->withTravelStay($session, $this->withOpenToSuggestions($session, $lines)));
     }
 
     public function normalizeSuggestionPayload(array $item): array
@@ -77,7 +86,14 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
                     continue;
                 }
 
-                $stops[] = $this->normalizeStop($stop);
+                $normalized = $this->normalizeStop($stop);
+                $cost = $this->costPerPerson($stop['cost_per_person'] ?? null);
+
+                if ($cost !== null) {
+                    $normalized['cost_per_person'] = $cost;
+                }
+
+                $stops[] = $normalized;
             }
 
             $days[] = [
@@ -98,6 +114,55 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $content
+     * @return array<string, mixed>
+     */
+    public function applyTripDates(PlanSession $session, array $content): array
+    {
+        $range = $this->tripRange($session);
+        $days = $content['days'] ?? null;
+
+        if ($range === null || ! is_array($days) || $days === []) {
+            return $content;
+        }
+
+        [$start, $end] = $range;
+        $spanDays = (int) $start->diffInDays($end) + 1;
+        $useWeeks = $spanDays >= 32;
+
+        foreach ($days as $index => $day) {
+            if (! is_array($day)) {
+                continue;
+            }
+
+            $date = $useWeeks
+                ? $start->copy()->addWeeks($index)
+                : $start->copy()->addDays($index);
+
+            if ($date->gt($end)) {
+                $date = $end->copy();
+            }
+
+            $days[$index]['date'] = $date->format('l, F j, Y');
+        }
+
+        $content['days'] = $days;
+
+        return $content;
+    }
+
+    private function costPerPerson(mixed $value): ?float
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $cost = round((float) $value, 2);
+
+        return $cost > 0 ? $cost : null;
+    }
+
     private function itineraryLengthInstruction(PlanSession $session): string
     {
         $days = $this->inclusiveTripDays($session);
@@ -115,6 +180,20 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
 
     private function inclusiveTripDays(PlanSession $session): ?int
     {
+        $range = $this->tripRange($session);
+
+        if ($range === null) {
+            return null;
+        }
+
+        return (int) $range[0]->diffInDays($range[1]) + 1;
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}|null
+     */
+    private function tripRange(PlanSession $session): ?array
+    {
         $raw = $session->answers['dates'] ?? null;
 
         if (! is_string($raw) || trim($raw) === '') {
@@ -124,7 +203,7 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
         $decoded = json_decode($raw, true);
 
         if (is_array($decoded) && isset($decoded['start'], $decoded['end']) && is_string($decoded['start']) && is_string($decoded['end'])) {
-            return $this->daysBetween($decoded['start'], $decoded['end']);
+            return $this->orderedRange($decoded['start'], $decoded['end']);
         }
 
         $parts = preg_split('/\s*(?:–|—| - )\s*/u', trim($raw), 2);
@@ -133,10 +212,13 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
             return null;
         }
 
-        return $this->daysBetween($parts[0], $parts[1]);
+        return $this->orderedRange($parts[0], $parts[1]);
     }
 
-    private function daysBetween(string $start, string $end): ?int
+    /**
+     * @return array{0: Carbon, 1: Carbon}|null
+     */
+    private function orderedRange(string $start, string $end): ?array
     {
         $startDate = $this->parseTripDate($start);
         $endDate = $this->parseTripDate($end);
@@ -149,7 +231,7 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
             $endDate = $endDate->copy()->addYear();
         }
 
-        return (int) $startDate->diffInDays($endDate) + 1;
+        return [$startDate, $endDate];
     }
 
     private function parseTripDate(string $value): ?Carbon

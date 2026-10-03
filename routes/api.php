@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\EventController;
 use App\Http\Controllers\Api\V1\GeocodeController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\HotelSuggestionController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PlacePhotoController;
 use App\Http\Controllers\Api\V1\PlanLimitController;
@@ -31,6 +32,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/geocode/search', [GeocodeController::class, 'search']);
         Route::get('/geocode/reverse', [GeocodeController::class, 'reverse']);
     });
+    Route::post('/hotel-suggestions', [HotelSuggestionController::class, 'store'])
+        ->middleware('throttle:ai');
 
     Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 

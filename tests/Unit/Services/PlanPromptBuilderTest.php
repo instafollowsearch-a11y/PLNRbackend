@@ -81,6 +81,63 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertCount(1, $content['days']);
     }
 
+    public function test_vacation_day_dates_use_the_trip_year_and_keep_a_per_person_price(): void
+    {
+        $builder = new VacationPromptBuilder;
+        $session = new PlanSession([
+            'answers' => [
+                'dates' => json_encode(['start' => '2026-06-10', 'end' => '2026-06-12']),
+            ],
+        ]);
+        $suggestion = new Suggestion([
+            'payload' => ['name' => 'June trip', 'description' => 'A short stay'],
+        ]);
+
+        $this->assertStringContainsString('2026', $builder->itineraryUserPrompt($session, $suggestion));
+        $this->assertStringContainsString('cost_per_person', $builder->itinerarySystemPrompt());
+
+        $content = $builder->applyTripDates($session, $builder->normalizeItineraryContent([
+            'title' => 'Trip',
+            'summary' => 'Fun',
+            'days' => [
+                [
+                    'date' => 'June 10, 2025',
+                    'theme' => 'Arrive',
+                    'stops' => [
+                        ['time' => '10:00', 'name' => 'Market', 'activity' => 'Browse', 'notes' => '', 'cost_per_person' => 18],
+                    ],
+                ],
+                [
+                    'date' => 'June 11, 2025',
+                    'theme' => 'Walk',
+                    'stops' => [
+                        ['time' => '11:00', 'name' => 'Park', 'activity' => 'Sit', 'notes' => '', 'cost_per_person' => 0],
+                    ],
+                ],
+            ],
+        ]));
+
+        $this->assertSame('Wednesday, June 10, 2026', $content['days'][0]['date']);
+        $this->assertSame('Thursday, June 11, 2026', $content['days'][1]['date']);
+        $this->assertSame(18.0, $content['days'][0]['stops'][0]['cost_per_person']);
+        $this->assertArrayNotHasKey('cost_per_person', $content['days'][1]['stops'][0]);
+
+        $longStay = new PlanSession([
+            'answers' => [
+                'dates' => json_encode(['start' => '2026-06-01', 'end' => '2026-07-12']),
+            ],
+        ]);
+        $weekly = $builder->applyTripDates($longStay, [
+            'days' => [
+                ['date' => 'Week 1, 2025', 'theme' => 'Start', 'stops' => []],
+                ['date' => 'Week 2, 2025', 'theme' => 'Next', 'stops' => []],
+            ],
+        ]);
+
+        $this->assertSame('Monday, June 1, 2026', $weekly['days'][0]['date']);
+        $this->assertSame('Monday, June 8, 2026', $weekly['days'][1]['date']);
+    }
+
     public function test_vacation_month_prompt_asks_for_one_stop_per_day(): void
     {
         $builder = new VacationPromptBuilder;
@@ -192,6 +249,19 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertStringContainsString('Account for the hotel shuttle: Yes.', $prompt);
         $this->assertStringContainsString('They are flying, so account for the flight in the plan.', $prompt);
         $this->assertStringContainsString('Use the hotel at Hotel Arts as the base for the plan.', $builder->itineraryUserPrompt($withStay, $suggestion));
+        $needsSuggestion = new PlanSession([
+            'answers' => [
+                'needs_hotel' => 'Yes',
+                'hotel_pick' => '__suggest__',
+                'flying' => 'No',
+            ],
+        ]);
+
+        $this->assertStringContainsString(
+            'Suggest 2 or 3 real hotels with https website links',
+            $builder->suggestionUserPrompt($needsSuggestion),
+        );
+        $this->assertStringContainsString('Do not book the hotel.', $builder->suggestionUserPrompt($needsSuggestion));
         $this->assertStringNotContainsString('as the base for the plan', $builder->suggestionUserPrompt($withoutStay));
         $this->assertStringNotContainsString('account for the flight', $builder->itineraryUserPrompt($withoutStay, $suggestion));
     }

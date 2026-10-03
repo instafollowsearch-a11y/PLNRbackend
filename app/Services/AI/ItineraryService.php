@@ -6,6 +6,7 @@ use App\Models\Itinerary;
 use App\Models\PlanSession;
 use App\Models\Suggestion;
 use App\Services\AI\Prompts\PlanPromptBuilderResolver;
+use App\Services\AI\Prompts\VacationPromptBuilder;
 use App\Services\Places\PlaceListingLookup;
 
 class ItineraryService
@@ -64,8 +65,14 @@ class ItineraryService
             ],
         ], true, 8192);
 
+        $content = $builder->normalizeItineraryContent($response);
+
+        if ($builder instanceof VacationPromptBuilder) {
+            $content = $builder->applyTripDates($session, $content);
+        }
+
         return $this->placeListingLookup->enrich(
-            $builder->normalizeItineraryContent($response),
+            $content,
             is_string($session->city) ? $session->city : null,
         );
     }

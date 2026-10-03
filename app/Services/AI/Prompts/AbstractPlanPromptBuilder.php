@@ -192,11 +192,25 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
         $parts = [];
 
         if ($needsHotel) {
-            $location = trim((string) ($answers['hotel_location'] ?? ''));
+            $pick = trim((string) ($answers['hotel_pick'] ?? ''));
+            $namedFromPick = $pick !== '' && $pick !== '__suggest__' ? $pick : '';
+            $location = $namedFromPick !== ''
+                ? $namedFromPick
+                : trim((string) ($answers['hotel_location'] ?? ''));
             $shuttle = trim((string) ($answers['hotel_shuttle'] ?? ''));
-            $base = $location !== ''
-                ? 'Use the hotel at '.$location.' as the base for the plan.'
-                : 'Use the hotel as the base for the plan.';
+            $isYes = (string) ($answers['needs_hotel'] ?? '') === 'Yes';
+
+            if ($isYes && $location === '') {
+                $base = 'They need a hotel. Suggest 2 or 3 real hotels with https website links in the plan. Do not book the hotel.';
+            } else {
+                $base = $location !== ''
+                    ? 'Use the hotel at '.$location.' as the base for the plan.'
+                    : 'Use the hotel as the base for the plan.';
+
+                if ($isYes) {
+                    $base .= ' Include a link to the hotel site when you know one. Do not book the hotel.';
+                }
+            }
 
             if ($shuttle !== '') {
                 $base .= ' Account for the hotel shuttle: '.$shuttle.'.';

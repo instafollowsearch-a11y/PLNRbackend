@@ -67,9 +67,11 @@ class ItineraryMailTest extends TestCase
         );
         $this->assertStringContainsString('Saturday Night Out in Austin', $html);
         $this->assertStringContainsString('Austin', $html);
-        $this->assertStringContainsString('Blue Note Bar', $html);
-        $this->assertStringContainsString('Harbor Jazz Club', $html);
-        $this->assertStringContainsString('Live jazz set', $html);
+        $this->assertStringContainsString('View on PLNR', $html);
+        $this->assertStringContainsString('/plan/night_out/itinerary?session='.$session->uuid, $html);
+        $this->assertStringNotContainsString('Blue Note Bar', $html);
+        $this->assertStringNotContainsString('Harbor Jazz Club', $html);
+        $this->assertStringNotContainsString('Live jazz set', $html);
         $this->assertStringContainsString($theme['accent'], $html);
         $this->assertStringContainsString('data-motif="moon"', $html);
         $this->assertStringContainsString('margin-top:-28px', $html);
@@ -131,8 +133,10 @@ class ItineraryMailTest extends TestCase
 
         $this->assertStringContainsString('7 Days in Barcelona', $html);
         $this->assertStringContainsString('Vacation', $html);
-        $this->assertStringContainsString('Gothic Quarter', $html);
-        $this->assertStringContainsString('Sagrada Familia', $html);
+        $this->assertStringContainsString('View on PLNR', $html);
+        $this->assertStringContainsString('/plan/vacation/itinerary?session='.$session->uuid, $html);
+        $this->assertStringNotContainsString('Gothic Quarter', $html);
+        $this->assertStringNotContainsString('Sagrada Familia', $html);
         $this->assertStringContainsString($theme['accent'], $html);
         $this->assertStringContainsString('data-motif="wave"', $html);
         $this->assertStringContainsString('margin-top:-28px', $html);

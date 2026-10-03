@@ -17,9 +17,11 @@ class VacationAnswerRules
             'answers.interests' => ['required', 'string', 'min:3'],
             'answers.group_size' => ['required', 'integer', 'min:1', 'max:20'],
             'answers.activity_mix' => ['required', 'string', 'min:3'],
+            'answers.arrival_time' => ['required', 'string', 'max:40'],
             'answers.needs_hotel' => ['required', 'string', 'in:Yes,No,Already booked'],
-            'answers.hotel_location' => ['required_if:answers.needs_hotel,Yes', 'required_if:answers.needs_hotel,Already booked', 'nullable', 'string', 'max:255'],
-            'answers.hotel_shuttle' => ['required_if:answers.needs_hotel,Yes', 'required_if:answers.needs_hotel,Already booked', 'nullable', 'string', 'in:Yes,No,Not sure'],
+            'answers.hotel_pick' => ['required_if:answers.needs_hotel,Yes', 'nullable', 'string', 'max:255'],
+            'answers.hotel_location' => ['required_if:answers.needs_hotel,Already booked', 'nullable', 'string', 'max:255'],
+            'answers.hotel_shuttle' => ['required_if:answers.needs_hotel,Already booked', 'nullable', 'string', 'in:Yes,No,Not sure'],
             'answers.flying' => ['required', 'string', 'in:Yes,No'],
         ];
     }

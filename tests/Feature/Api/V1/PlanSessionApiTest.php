@@ -76,6 +76,7 @@ class PlanSessionApiTest extends TestCase
                 'interests' => 'food and architecture',
                 'group_size' => 2,
                 'activity_mix' => 'Active mornings, relax afternoons',
+                'arrival_time' => '3:00 PM',
                 'needs_hotel' => 'No',
                 'flying' => 'No',
             ],
