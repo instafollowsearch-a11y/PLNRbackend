@@ -20,8 +20,22 @@ class StripePaymentGateway implements PaymentGateway
 
     public function ensureCustomer(User $user): string
     {
-        if ($user->stripe_customer_id) {
-            return $user->stripe_customer_id;
+        $existing = $user->stripe_customer_id;
+
+        if (is_string($existing) && $existing !== '' && ! $this->isPlaceholderCustomer($existing)) {
+            try {
+                $this->client->customers->retrieve($existing);
+
+                return $existing;
+            } catch (ApiErrorException $exception) {
+                if (! $this->isMissingCustomer($exception)) {
+                    throw $exception;
+                }
+
+                $user->forceFill(['stripe_customer_id' => null])->save();
+            }
+        } elseif (is_string($existing) && $existing !== '') {
+            $user->forceFill(['stripe_customer_id' => null])->save();
         }
 
         $customer = $this->client->customers->create([
@@ -105,5 +119,16 @@ class StripePaymentGateway implements PaymentGateway
             'payment_intent_id' => $intent->id,
             'status' => (string) $intent->status,
         ];
+    }
+
+    private function isPlaceholderCustomer(string $customerId): bool
+    {
+        return str_starts_with($customerId, 'cus_fake') || str_starts_with($customerId, 'cus_qa');
+    }
+
+    private function isMissingCustomer(ApiErrorException $exception): bool
+    {
+        return $exception->getStripeCode() === 'resource_missing'
+            || str_contains($exception->getMessage(), 'No such customer');
     }
 }

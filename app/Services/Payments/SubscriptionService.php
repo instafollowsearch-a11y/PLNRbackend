@@ -4,7 +4,9 @@ namespace App\Services\Payments;
 
 use App\Models\User;
 use App\Services\Settings\AppSettings;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
 
 class SubscriptionService
@@ -22,36 +24,41 @@ class SubscriptionService
         $this->assertAllowedReturnUrl($cancelUrl);
 
         $client = $this->stripeClient();
-        $customerId = (new StripePaymentGateway($this->settings))->ensureCustomer($user);
-        $session = $client->checkout->sessions->create([
-            'mode' => 'subscription',
-            'customer' => $customerId,
-            'success_url' => $this->withBillingQuery($successUrl, 'success'),
-            'cancel_url' => $this->withBillingQuery($cancelUrl, 'canceled'),
-            'client_reference_id' => (string) $user->id,
-            'metadata' => [
-                'user_id' => (string) $user->id,
-            ],
-            'subscription_data' => [
+
+        try {
+            $customerId = (new StripePaymentGateway($this->settings))->ensureCustomer($user);
+            $session = $client->checkout->sessions->create([
+                'mode' => 'subscription',
+                'customer' => $customerId,
+                'success_url' => $this->withBillingQuery($successUrl, 'success'),
+                'cancel_url' => $this->withBillingQuery($cancelUrl, 'canceled'),
+                'client_reference_id' => (string) $user->id,
                 'metadata' => [
                     'user_id' => (string) $user->id,
                 ],
-            ],
-            'line_items' => [[
-                'quantity' => 1,
-                'price_data' => [
-                    'currency' => $this->settings->proCurrency(),
-                    'unit_amount' => $this->settings->proMonthlyPriceCents(),
-                    'recurring' => [
-                        'interval' => 'month',
-                    ],
-                    'product_data' => [
-                        'name' => 'PLNR Pro',
-                        'description' => 'Weekend recommendations and plan sharing',
+                'subscription_data' => [
+                    'metadata' => [
+                        'user_id' => (string) $user->id,
                     ],
                 ],
-            ]],
-        ]);
+                'line_items' => [[
+                    'quantity' => 1,
+                    'price_data' => [
+                        'currency' => $this->settings->proCurrency(),
+                        'unit_amount' => $this->settings->proMonthlyPriceCents(),
+                        'recurring' => [
+                            'interval' => 'month',
+                        ],
+                        'product_data' => [
+                            'name' => 'PLNR Pro',
+                            'description' => 'Weekend recommendations and plan sharing',
+                        ],
+                    ],
+                ]],
+            ]);
+        } catch (ApiErrorException $exception) {
+            $this->failStripe($exception);
+        }
 
         return [
             'url' => (string) $session->url,
@@ -67,11 +74,16 @@ class SubscriptionService
         $this->assertAllowedReturnUrl($returnUrl);
 
         $client = $this->stripeClient();
-        $customerId = (new StripePaymentGateway($this->settings))->ensureCustomer($user);
-        $session = $client->billingPortal->sessions->create([
-            'customer' => $customerId,
-            'return_url' => $returnUrl,
-        ]);
+
+        try {
+            $customerId = (new StripePaymentGateway($this->settings))->ensureCustomer($user);
+            $session = $client->billingPortal->sessions->create([
+                'customer' => $customerId,
+                'return_url' => $returnUrl,
+            ]);
+        } catch (ApiErrorException $exception) {
+            $this->failStripe($exception);
+        }
 
         return [
             'url' => (string) $session->url,
@@ -88,13 +100,20 @@ class SubscriptionService
             ]);
         }
 
-        if ($user->stripe_subscription_id === null || $user->stripe_subscription_id === '') {
+        $subscriptionId = $user->stripe_subscription_id;
+
+        if (! is_string($subscriptionId) || $subscriptionId === '' || $this->isPlaceholderSubscription($subscriptionId)) {
             throw ValidationException::withMessages([
                 'subscription' => ['No Stripe subscription found. Use Manage Pro to update billing.'],
             ]);
         }
 
-        $subscription = $client->subscriptions->cancel($user->stripe_subscription_id);
+        try {
+            $subscription = $client->subscriptions->cancel($subscriptionId);
+        } catch (ApiErrorException $exception) {
+            $this->failStripe($exception);
+        }
+
         $this->markCanceledFromSubscription($subscription);
 
         return $user->fresh() ?? $user;
@@ -303,6 +322,23 @@ class SubscriptionService
         $separator = str_contains($url, '?') ? '&' : '?';
 
         return $url.$separator.'billing='.$status;
+    }
+
+    private function isPlaceholderSubscription(string $subscriptionId): bool
+    {
+        return str_starts_with($subscriptionId, 'sub_fake') || str_starts_with($subscriptionId, 'sub_qa');
+    }
+
+    private function failStripe(ApiErrorException $exception): never
+    {
+        Log::warning('stripe.subscription_failed', [
+            'stripe_code' => $exception->getStripeCode(),
+            'message' => $exception->getMessage(),
+        ]);
+
+        throw ValidationException::withMessages([
+            'subscription' => ['Stripe could not complete that request. Check the Stripe key in Admin → Settings.'],
+        ]);
     }
 
     private function stripeClient(): StripeClient

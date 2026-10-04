@@ -36,4 +36,19 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json(['message' => 'Too many requests.'], 429);
             }
         });
+
+        $exceptions->render(function (\Stripe\Exception\ApiErrorException $e, $request) {
+            if (! $request->is('api/*') && ! $request->expectsJson()) {
+                return null;
+            }
+
+            report($e);
+
+            return response()->json([
+                'message' => 'Stripe could not complete that request. Check the Stripe key in Admin → Settings.',
+                'errors' => [
+                    'subscription' => ['Stripe could not complete that request. Check the Stripe key in Admin → Settings.'],
+                ],
+            ], 422);
+        });
     })->create();
