@@ -5,9 +5,7 @@ namespace Tests\Unit\Services;
 use App\Models\PlanSession;
 use App\Models\PlanType;
 use App\Models\Suggestion;
-use App\Services\AI\AnthropicClient;
 use App\Services\AI\ItineraryService;
-use App\Services\AI\Prompts\PlanPromptBuilderResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\Concerns\FakesAnthropic;
@@ -57,7 +55,7 @@ class ItineraryServiceTest extends TestCase
             ],
         ]);
 
-        $service = new ItineraryService(app(AnthropicClient::class), new PlanPromptBuilderResolver);
+        $service = app(ItineraryService::class);
         $itinerary = $service->generate($session, $suggestion);
 
         $this->assertSame('Saturday Night Out in Austin', $itinerary->content['title']);
@@ -92,7 +90,7 @@ class ItineraryServiceTest extends TestCase
             'payload' => ['name' => 'Other night', 'description' => 'Still here'],
         ]);
 
-        $service = new ItineraryService(app(AnthropicClient::class), new PlanPromptBuilderResolver);
+        $service = app(ItineraryService::class);
         $drafted = $service->draft($session, $suggestion);
         $service->draft($session, $drafted);
 

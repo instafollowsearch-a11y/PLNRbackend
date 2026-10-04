@@ -27,9 +27,9 @@ class PlaceListingLookup
      * @param  array<string, mixed>  $content
      * @return array<string, mixed>
      */
-    public function enrich(array $content, ?string $city): array
+    public function enrich(array $content, ?string $city, ?AreaLimit $area = null, bool $keepCoordinates = false): array
     {
-        if ($this->settings->googlePlacesApiKey() === null) {
+        if ($this->settings->googleApiKey() === null) {
             return $content;
         }
 
@@ -40,7 +40,7 @@ class PlaceListingLookup
         }
 
         if (isset($content['stops']) && is_array($content['stops'])) {
-            $content['stops'] = $this->enrichStopList($content['stops'], $cityName);
+            $content['stops'] = $this->enrichStopList($content['stops'], $cityName, $area, $keepCoordinates);
         }
 
         if (isset($content['days']) && is_array($content['days'])) {
@@ -49,7 +49,7 @@ class PlaceListingLookup
                     continue;
                 }
 
-                $day['stops'] = $this->enrichStopList($day['stops'], $cityName);
+                $day['stops'] = $this->enrichStopList($day['stops'], $cityName, $area, false);
                 $content['days'][$index] = $day;
             }
         }
@@ -68,24 +68,41 @@ class PlaceListingLookup
      * @param  array<int, mixed>  $stops
      * @return array<int, mixed>
      */
-    private function enrichStopList(array $stops, string $city): array
+    private function enrichStopList(array $stops, string $city, ?AreaLimit $area, bool $keepCoordinates): array
     {
-        foreach ($stops as $index => $stop) {
+        $kept = [];
+        $removed = 0;
+
+        foreach ($stops as $stop) {
             if (! is_array($stop)) {
+                $kept[] = $stop;
+
                 continue;
             }
 
-            $stops[$index] = $this->enrichStop($stop, $city);
+            $enriched = $this->enrichStop($stop, $city, $area, $keepCoordinates);
+
+            if ($enriched === null) {
+                $removed++;
+
+                continue;
+            }
+
+            $kept[] = $enriched;
         }
 
-        return $stops;
+        if ($removed > 0 && $this->arrayStopCount($kept) === 0) {
+            return $stops;
+        }
+
+        return $kept;
     }
 
     /**
      * @param  array<string, mixed>  $stop
-     * @return array<string, mixed>
+     * @return array<string, mixed>|null
      */
-    private function enrichStop(array $stop, string $city): array
+    private function enrichStop(array $stop, string $city, ?AreaLimit $area, bool $keepCoordinates): ?array
     {
         $name = trim((string) ($stop['name'] ?? ''));
 
@@ -93,26 +110,40 @@ class PlaceListingLookup
             return $stop;
         }
 
-        $match = $this->match($name, $city);
+        $match = $this->match($name, $city, $area);
 
         if ($match === null) {
             return $stop;
+        }
+
+        if ($match['closed'] === true) {
+            return null;
+        }
+
+        if ($area !== null && $match['latitude'] !== null && $match['longitude'] !== null && ! $area->contains($match['latitude'], $match['longitude'])) {
+            return null;
         }
 
         $stop = $this->fillEmpty($stop, 'hours', $match['hours']);
         $stop = $this->fillEmpty($stop, 'photo_url', $this->photoUrl($match));
         $stop = $this->fillEmpty($stop, 'external_url', $match['website']);
         $stop = $this->fillEmpty($stop, 'maps_url', $match['maps']);
+        $stop = $this->fillEmpty($stop, 'address', $match['address']);
+
+        if ($keepCoordinates && $match['latitude'] !== null && $match['longitude'] !== null) {
+            $stop['latitude'] = $match['latitude'];
+            $stop['longitude'] = $match['longitude'];
+        }
 
         return $stop;
     }
 
     /**
-     * @return array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string}|null
+     * @return array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null
      */
-    private function match(string $name, string $city): ?array
+    private function match(string $name, string $city, ?AreaLimit $area): ?array
     {
-        $cacheKey = self::MATCH_CACHE_PREFIX.sha1(strtolower($city.'|'.$name));
+        $cacheKey = self::MATCH_CACHE_PREFIX.sha1($this->cacheSubject($name, $city, $area));
         $cached = Cache::get($cacheKey);
 
         if ($cached === false) {
@@ -122,23 +153,37 @@ class PlaceListingLookup
         if (is_array($cached)) {
             $this->rememberPhoto($cached);
 
-            return $cached;
+            return $this->normalizeCachedMatch($cached);
         }
 
-        $key = $this->settings->googlePlacesApiKey();
+        $key = $this->settings->googleApiKey();
 
         if ($key === null) {
             return null;
         }
 
+        $body = [
+            'textQuery' => $name.', '.$city,
+            'pageSize' => 1,
+        ];
+
+        if ($area !== null) {
+            $body['locationBias'] = [
+                'circle' => [
+                    'center' => [
+                        'latitude' => $area->latitude,
+                        'longitude' => $area->longitude,
+                    ],
+                    'radius' => $area->radiusMeters(),
+                ],
+            ];
+        }
+
         try {
             $response = Http::withHeaders([
                 'X-Goog-Api-Key' => $key,
-                'X-Goog-FieldMask' => 'places.displayName,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri',
-            ])->timeout(8)->post(self::SEARCH_URL, [
-                'textQuery' => $name.', '.$city,
-                'pageSize' => 1,
-            ]);
+                'X-Goog-FieldMask' => 'places.displayName,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri,places.businessStatus,places.formattedAddress,places.location',
+            ])->timeout(8)->post(self::SEARCH_URL, $body);
         } catch (ConnectionException|Throwable) {
             return null;
         }
@@ -165,12 +210,17 @@ class PlaceListingLookup
 
         $photoName = $place['photos'][0]['name'] ?? null;
         $photoName = is_string($photoName) && $this->isPhotoName($photoName) ? $photoName : null;
+        $location = is_array($place['location'] ?? null) ? $place['location'] : [];
         $match = [
             'photo_name' => $photoName,
             'photo_token' => $photoName !== null ? Str::random(32) : null,
             'hours' => $this->hoursLine($place),
             'website' => $this->httpsUrl($place['websiteUri'] ?? null),
             'maps' => $this->httpsUrl($place['googleMapsUri'] ?? null),
+            'closed' => ($place['businessStatus'] ?? null) === 'CLOSED_PERMANENTLY',
+            'address' => $this->streetAddress($place['formattedAddress'] ?? null),
+            'latitude' => $this->coordinate($location['latitude'] ?? null),
+            'longitude' => $this->coordinate($location['longitude'] ?? null),
         ];
 
         $this->rememberPhoto($match);
@@ -265,5 +315,67 @@ class PlaceListingLookup
     private function isPhotoName(string $name): bool
     {
         return preg_match('/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/', $name) === 1;
+    }
+
+    private function cacheSubject(string $name, string $city, ?AreaLimit $area): string
+    {
+        $subject = strtolower($city.'|'.$name);
+
+        if ($area === null) {
+            return $subject;
+        }
+
+        return $subject.'|'.round($area->latitude, 3).'|'.round($area->longitude, 3).'|'.$area->miles;
+    }
+
+    /**
+     * @param  array<string, mixed>  $cached
+     * @return array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}
+     */
+    private function normalizeCachedMatch(array $cached): array
+    {
+        return [
+            'photo_name' => is_string($cached['photo_name'] ?? null) ? $cached['photo_name'] : null,
+            'photo_token' => is_string($cached['photo_token'] ?? null) ? $cached['photo_token'] : null,
+            'hours' => is_string($cached['hours'] ?? null) ? $cached['hours'] : null,
+            'website' => is_string($cached['website'] ?? null) ? $cached['website'] : null,
+            'maps' => is_string($cached['maps'] ?? null) ? $cached['maps'] : null,
+            'closed' => ($cached['closed'] ?? false) === true,
+            'address' => is_string($cached['address'] ?? null) ? $cached['address'] : null,
+            'latitude' => $this->coordinate($cached['latitude'] ?? null),
+            'longitude' => $this->coordinate($cached['longitude'] ?? null),
+        ];
+    }
+
+    private function streetAddress(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $address = trim($value);
+
+        if ($address === '' || preg_match('/\d/', $address) !== 1) {
+            return null;
+        }
+
+        return $address;
+    }
+
+    private function coordinate(mixed $value): ?float
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    /**
+     * @param  array<int, mixed>  $stops
+     */
+    private function arrayStopCount(array $stops): int
+    {
+        return count(array_filter($stops, 'is_array'));
     }
 }

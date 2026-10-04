@@ -15,7 +15,7 @@ class PlacePhotoController extends Controller
     public function show(string $token, PlaceListingLookup $listings, AppSettings $settings): Response
     {
         $name = $listings->photoName($token);
-        $key = $settings->googlePlacesApiKey();
+        $key = $settings->googleApiKey();
 
         if ($name === null || $key === null) {
             abort(404);

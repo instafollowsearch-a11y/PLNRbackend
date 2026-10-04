@@ -93,6 +93,7 @@ return [
 
     'google' => [
         'places_key' => env('GOOGLE_PLACES_API_KEY'),
+        'gas_price_per_gallon' => (float) env('GAS_PRICE_PER_GALLON', 3.5),
     ],
 
 ];

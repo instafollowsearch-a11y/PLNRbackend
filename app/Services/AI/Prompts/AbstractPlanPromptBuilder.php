@@ -4,6 +4,7 @@ namespace App\Services\AI\Prompts;
 
 use App\Models\PlanSession;
 use App\Models\Suggestion;
+use App\Services\Places\AreaLimit;
 use App\Services\Events\EventContextService;
 
 abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
@@ -148,6 +149,21 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
 
         if ($line !== '') {
             $lines[] = $line;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param  array<int, string>  $lines
+     * @return array<int, string>
+     */
+    protected function withAreaLimit(PlanSession $session, array $lines): array
+    {
+        $limit = AreaLimit::fromAnswers($session->answers ?? []);
+
+        if ($limit !== null) {
+            $lines[] = $limit->instruction();
         }
 
         return $lines;

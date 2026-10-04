@@ -7,7 +7,9 @@ use App\Models\PlanSession;
 use App\Models\Suggestion;
 use App\Services\AI\Prompts\PlanPromptBuilderResolver;
 use App\Services\AI\Prompts\VacationPromptBuilder;
+use App\Services\Places\AreaLimit;
 use App\Services\Places\PlaceListingLookup;
+use App\Services\Places\RoadTripDriveEstimate;
 
 class ItineraryService
 {
@@ -15,6 +17,7 @@ class ItineraryService
         private readonly AiChatClient $client,
         private readonly PlanPromptBuilderResolver $promptBuilderResolver,
         private readonly PlaceListingLookup $placeListingLookup,
+        private readonly RoadTripDriveEstimate $roadTripDriveEstimate,
     ) {}
 
     public function draft(PlanSession $session, Suggestion $suggestion): Suggestion
@@ -23,8 +26,12 @@ class ItineraryService
             return $suggestion;
         }
 
+        $content = $this->writeContent($session, $suggestion);
+        $this->rememberRoadTripEstimate($suggestion, $content);
+
         $suggestion->update([
-            'itinerary_content' => $this->writeContent($session, $suggestion),
+            'itinerary_content' => $content,
+            'payload' => $suggestion->payload,
         ]);
 
         return $suggestion->fresh() ?? $suggestion;
@@ -32,9 +39,13 @@ class ItineraryService
 
     public function generate(PlanSession $session, Suggestion $suggestion): Itinerary
     {
-        $content = $this->hasDraft($suggestion)
-            ? $suggestion->itinerary_content
-            : $this->writeContent($session, $suggestion);
+        if ($this->hasDraft($suggestion)) {
+            $content = $suggestion->itinerary_content;
+        } else {
+            $content = $this->writeContent($session, $suggestion);
+            $this->rememberRoadTripEstimate($suggestion, $content);
+            $suggestion->update(['payload' => $suggestion->payload]);
+        }
 
         $session->itinerary()?->delete();
 
@@ -71,10 +82,43 @@ class ItineraryService
             $content = $builder->applyTripDates($session, $content);
         }
 
-        return $this->placeListingLookup->enrich(
+        $isRoadTrip = $builder->slug() === 'road_trip';
+        $content = $this->placeListingLookup->enrich(
             $content,
             is_string($session->city) ? $session->city : null,
+            AreaLimit::fromAnswers($session->answers ?? []),
+            $isRoadTrip,
         );
+
+        if (! $isRoadTrip) {
+            return $content;
+        }
+
+        $carType = $session->answers['car_type'] ?? null;
+
+        return $this->roadTripDriveEstimate->apply(
+            $content,
+            is_string($carType) ? $carType : null,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $content
+     */
+    private function rememberRoadTripEstimate(Suggestion $suggestion, array $content): void
+    {
+        if (! isset($content['total_drive_time']) || ! is_string($content['total_drive_time'])) {
+            return;
+        }
+
+        $payload = $suggestion->payload ?? [];
+        $payload['total_drive_time'] = $content['total_drive_time'];
+
+        if (isset($content['estimated_gas_cost']) && is_numeric($content['estimated_gas_cost'])) {
+            $payload['estimated_gas_cost'] = (float) $content['estimated_gas_cost'];
+        }
+
+        $suggestion->payload = $payload;
     }
 
     private function hasDraft(Suggestion $suggestion): bool

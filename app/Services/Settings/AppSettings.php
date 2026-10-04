@@ -178,12 +178,12 @@ class AppSettings
         );
         $settings[self::ANTHROPIC_API_KEY.'_hint'] = $this->maskSecret($this->anthropicApiKey());
 
-        $settings[self::GOOGLE_PLACES_API_KEY.'_set'] = $this->googlePlacesApiKey() !== null;
+        $settings[self::GOOGLE_PLACES_API_KEY.'_set'] = $this->googleApiKey() !== null;
         $settings[self::GOOGLE_PLACES_API_KEY.'_source'] = $this->sourceFor(
             self::GOOGLE_PLACES_API_KEY,
             config('services.google.places_key'),
         );
-        $settings[self::GOOGLE_PLACES_API_KEY.'_hint'] = $this->maskSecret($this->googlePlacesApiKey());
+        $settings[self::GOOGLE_PLACES_API_KEY.'_hint'] = $this->maskSecret($this->googleApiKey());
 
         $settings[self::ANTHROPIC_MODEL] = $this->anthropicModel();
         $settings[self::ANTHROPIC_MODEL.'_source'] = $this->sourceFor(
@@ -339,7 +339,10 @@ class AppSettings
         return $this->resolveString(self::ANTHROPIC_API_KEY, config('services.anthropic.key'));
     }
 
-    public function googlePlacesApiKey(): ?string
+    /**
+     * Google Cloud key saved in admin. Places and Routes both read this value.
+     */
+    public function googleApiKey(): ?string
     {
         $fallback = config('services.google.places_key');
 
