@@ -182,7 +182,7 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
     protected function travelStayLine(PlanSession $session): string
     {
         $answers = $session->answers ?? [];
-        $needsHotel = in_array((string) ($answers['needs_hotel'] ?? ''), ['Yes', 'Already booked'], true);
+        $needsHotel = in_array((string) ($answers['needs_hotel'] ?? ''), ["I don't have a hotel", 'Already booked'], true);
         $isFlying = (string) ($answers['flying'] ?? '') === 'Yes';
 
         if (! $needsHotel && ! $isFlying) {
@@ -198,7 +198,7 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
                 ? $namedFromPick
                 : trim((string) ($answers['hotel_location'] ?? ''));
             $shuttle = trim((string) ($answers['hotel_shuttle'] ?? ''));
-            $isYes = (string) ($answers['needs_hotel'] ?? '') === 'Yes';
+            $isYes = (string) ($answers['needs_hotel'] ?? '') === "I don't have a hotel";
 
             if ($isYes && $location === '') {
                 $base = 'They need a hotel. Suggest 2 or 3 real hotels with https website links in the plan. Do not book the hotel.';

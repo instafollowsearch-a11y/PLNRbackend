@@ -229,7 +229,7 @@ class PlanPromptBuilderTest extends TestCase
         ]);
         $withStay = new PlanSession([
             'answers' => [
-                'needs_hotel' => 'Yes',
+                'needs_hotel' => "I don't have a hotel",
                 'hotel_location' => 'Hotel Arts',
                 'hotel_shuttle' => 'Yes',
                 'flying' => 'Yes',
@@ -238,7 +238,7 @@ class PlanPromptBuilderTest extends TestCase
         $withoutStay = new PlanSession([
             'answers' => [
                 'destination' => 'Barcelona',
-                'needs_hotel' => 'No',
+                'needs_hotel' => "I don't need a hotel",
                 'flying' => 'No',
             ],
         ]);
@@ -251,7 +251,7 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertStringContainsString('Use the hotel at Hotel Arts as the base for the plan.', $builder->itineraryUserPrompt($withStay, $suggestion));
         $needsSuggestion = new PlanSession([
             'answers' => [
-                'needs_hotel' => 'Yes',
+                'needs_hotel' => "I don't have a hotel",
                 'hotel_pick' => '__suggest__',
                 'flying' => 'No',
             ],

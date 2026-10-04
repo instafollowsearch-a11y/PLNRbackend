@@ -77,7 +77,7 @@ class PlanSessionApiTest extends TestCase
                 'group_size' => 2,
                 'activity_mix' => 'Active mornings, relax afternoons',
                 'arrival_time' => '3:00 PM',
-                'needs_hotel' => 'No',
+                'needs_hotel' => "I don't need a hotel",
                 'flying' => 'No',
             ],
             'road_trip' => [
@@ -91,7 +91,7 @@ class PlanSessionApiTest extends TestCase
                 'interests' => 'country music and hiking',
                 'food_preferences' => 'BBQ and diners',
                 'group_size' => 3,
-                'needs_hotel' => 'No',
+                'needs_hotel' => "I don't need a hotel",
             ],
             default => [],
         };

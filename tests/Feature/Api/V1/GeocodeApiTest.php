@@ -61,6 +61,10 @@ class GeocodeApiTest extends TestCase
         $this->getJson('/api/v1/geocode/search?q=Austin')
             ->assertOk()
             ->assertJsonPath('data.0.label', 'Austin, Texas');
+
+        Http::assertSent(function ($request): bool {
+            return str_contains($request->url(), 'accept-language=en');
+        });
     }
 
     public function test_search_skips_a_short_query(): void

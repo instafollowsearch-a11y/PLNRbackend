@@ -19,8 +19,6 @@ class EnsurePlanSessionAccess
         }
 
         $user = $request->user();
-        $method = strtoupper($request->method());
-        $isWrite = ! in_array($method, ['GET', 'HEAD', 'OPTIONS'], true);
 
         if ($planSession->user_id === null) {
             return $next($request);
@@ -31,10 +29,6 @@ class EnsurePlanSessionAccess
         }
 
         if ($user !== null && $planSession->isMember($user)) {
-            if ($isWrite) {
-                abort(403, 'Viewers can view this plan but cannot edit it.');
-            }
-
             return $next($request);
         }
 

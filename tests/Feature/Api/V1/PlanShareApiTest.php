@@ -13,10 +13,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\FakesAnthropic;
 use Tests\TestCase;
 
 class PlanShareApiTest extends TestCase
 {
+    use FakesAnthropic;
     use RefreshDatabase;
 
     public function test_pro_owner_can_share_and_invitee_can_accept(): void
@@ -82,11 +84,16 @@ class PlanShareApiTest extends TestCase
         $this->assertSame(PlanShare::STATUS_ACCEPTED, $share->fresh()->status);
     }
 
-    public function test_viewer_cannot_refine(): void
+    public function test_viewer_can_refine_but_cannot_share_or_delete(): void
     {
+        config(['services.anthropic.key' => 'test-key']);
+        $this->fakeAnthropicSuggestions();
+
         $owner = User::factory()->pro()->create();
-        $viewer = User::factory()->create();
+        $viewer = User::factory()->pro()->create();
         $session = $this->ownedCompletedSession($owner);
+        $session->answers = ['city' => 'Austin', 'interests' => 'Live jazz'];
+        $session->save();
         $session->ensureOwnerMembership();
         PlanMember::query()->create([
             'plan_session_id' => $session->id,
@@ -98,11 +105,19 @@ class PlanShareApiTest extends TestCase
         Sanctum::actingAs($viewer);
         $this->postJson("/api/v1/plan-sessions/{$session->uuid}/refine", [
             'message' => 'Something else please',
-        ])->assertForbidden();
+        ])->assertOk();
+
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'someone@plnr.test',
+        ])->assertStatus(422);
+
+        $this->assertFalse($viewer->can('delete', $session->fresh()));
+        $this->assertTrue($viewer->can('update', $session->fresh()));
 
         Sanctum::actingAs($owner);
         $this->getJson("/api/v1/plan-sessions/{$session->uuid}")
-            ->assertOk();
+            ->assertOk()
+            ->assertJsonFragment(['content' => 'Something else please']);
     }
 
     public function test_wrong_email_cannot_accept(): void

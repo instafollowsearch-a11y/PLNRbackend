@@ -62,7 +62,7 @@ return [
         'web_app_url' => env('WEB_APP_URL', env('FRONTEND_URL', 'http://localhost:5173')),
         'checkout_success_origins' => array_values(array_filter(array_map(
             trim(...),
-            explode(',', (string) env('CHECKOUT_SUCCESS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,plnr://')),
+            explode(',', (string) env('CHECKOUT_SUCCESS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,https://pnr-api-0stl.onrender.com,plnr://')),
         ))),
     ],
 

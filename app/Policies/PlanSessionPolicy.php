@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Models\PlanMember;
 use App\Models\PlanSession;
 use App\Models\User;
 
@@ -20,7 +19,7 @@ class PlanSessionPolicy
 
     public function delete(?User $user, PlanSession $planSession): bool
     {
-        return $this->canEdit($user, $planSession);
+        return $user !== null && $planSession->isOwnedBy($user);
     }
 
     public function share(?User $user, PlanSession $planSession): bool
@@ -51,6 +50,10 @@ class PlanSessionPolicy
             return true;
         }
 
-        return $user !== null && $planSession->isOwnedBy($user);
+        if ($user !== null && $planSession->isOwnedBy($user)) {
+            return true;
+        }
+
+        return $user !== null && $planSession->isMember($user);
     }
 }

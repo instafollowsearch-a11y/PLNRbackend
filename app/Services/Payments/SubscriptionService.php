@@ -200,8 +200,12 @@ class SubscriptionService
 
     private function assertAllowedReturnUrl(string $url): void
     {
-        $origins = config('services.pro.checkout_success_origins', []);
-        if (! is_array($origins) || $origins === []) {
+        $configured = config('services.pro.checkout_success_origins', []);
+        $origins = is_array($configured) ? $configured : [];
+        $origins[] = rtrim((string) config('app.url'), '/');
+        $origins[] = rtrim((string) request()->getSchemeAndHttpHost(), '/');
+
+        if ($origins === []) {
             return;
         }
 
@@ -222,6 +226,16 @@ class SubscriptionService
 
     private function withBillingQuery(string $url, string $status): string
     {
+        $query = parse_url($url, PHP_URL_QUERY);
+
+        if (is_string($query) && $query !== '') {
+            parse_str($query, $params);
+
+            if (isset($params['billing']) && $params['billing'] !== '') {
+                return $url;
+            }
+        }
+
         $separator = str_contains($url, '?') ? '&' : '?';
 
         return $url.$separator.'billing='.$status;

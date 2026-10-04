@@ -23,6 +23,7 @@ class NominatimClient
             'format' => 'json',
             'limit' => 6,
             'addressdetails' => 1,
+            'accept-language' => 'en',
         ]);
 
         if (! is_array($payload)) {
@@ -56,6 +57,7 @@ class NominatimClient
             'lon' => $lon,
             'format' => 'json',
             'addressdetails' => 1,
+            'accept-language' => 'en',
         ]);
 
         if (! is_array($payload)) {

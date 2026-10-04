@@ -70,6 +70,26 @@ class BillingApiTest extends TestCase
         $this->assertSame(User::PRO_STATUS_ACTIVE, $user->fresh()->pro_status);
     }
 
+    public function test_checkout_accepts_the_api_return_page(): void
+    {
+        $user = User::factory()->create([
+            'pro_status' => User::PRO_STATUS_INACTIVE,
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/v1/billing/checkout-session', [
+            'success_url' => 'http://localhost/billing/return?billing=success',
+            'cancel_url' => 'http://localhost/billing/return?billing=cancel',
+        ])->assertOk();
+    }
+
+    public function test_billing_return_page_opens_the_app(): void
+    {
+        $this->get('/billing/return?billing=success')
+            ->assertOk()
+            ->assertSee('plnr:///(tabs)/account?billing=success', false);
+    }
+
     public function test_checkout_rejects_disallowed_origin(): void
     {
         Sanctum::actingAs(User::factory()->create());
