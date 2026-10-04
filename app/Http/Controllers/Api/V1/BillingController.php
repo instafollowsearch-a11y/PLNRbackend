@@ -49,7 +49,6 @@ class BillingController extends Controller
         return response()->json([
             'data' => [
                 'portal_url' => $session['url'],
-                'fake' => (bool) ($session['fake'] ?? false),
             ],
             'message' => 'Billing portal session created.',
         ]);

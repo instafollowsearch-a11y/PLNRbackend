@@ -33,7 +33,7 @@ class BillingApiTest extends TestCase
             ->assertJsonPath('data.stripe_fake', true);
     }
 
-    public function test_fake_portal_and_cancel_subscription(): void
+    public function test_portal_and_cancel_require_stripe(): void
     {
         $user = User::factory()->pro()->create();
         Sanctum::actingAs($user);
@@ -41,36 +41,17 @@ class BillingApiTest extends TestCase
         $this->postJson('/api/v1/billing/portal-session', [
             'return_url' => 'http://localhost:5173/plans',
         ])
-            ->assertOk()
-            ->assertJsonPath('data.fake', true)
-            ->assertJsonPath('data.portal_url', 'http://localhost:5173/plans?billing=portal&fake=1');
+            ->assertStatus(422)
+            ->assertJsonPath('errors.subscription.0', 'Stripe is not configured. Add a secret key in Admin → Settings.');
 
         $this->postJson('/api/v1/billing/cancel-subscription')
-            ->assertOk()
-            ->assertJsonPath('data.user.is_pro', false)
-            ->assertJsonPath('data.user.pro_status', User::PRO_STATUS_CANCELED);
+            ->assertStatus(422)
+            ->assertJsonPath('errors.subscription.0', 'Stripe is not configured. Add a secret key in Admin → Settings.');
 
-        $this->assertFalse($user->fresh()->isPro());
-    }
-
-    public function test_fake_checkout_activates_pro(): void
-    {
-        $user = User::factory()->create([
-            'pro_status' => User::PRO_STATUS_INACTIVE,
-        ]);
-        Sanctum::actingAs($user);
-
-        $response = $this->postJson('/api/v1/billing/checkout-session', [
-            'success_url' => 'http://localhost:5173/plans',
-            'cancel_url' => 'http://localhost:5173/plans',
-        ])->assertOk();
-
-        $this->assertStringContainsString('billing=success', $response->json('data.checkout_url'));
         $this->assertTrue($user->fresh()->isPro());
-        $this->assertSame(User::PRO_STATUS_ACTIVE, $user->fresh()->pro_status);
     }
 
-    public function test_checkout_accepts_the_api_return_page(): void
+    public function test_checkout_does_not_grant_pro_without_stripe(): void
     {
         $user = User::factory()->create([
             'pro_status' => User::PRO_STATUS_INACTIVE,
@@ -78,9 +59,35 @@ class BillingApiTest extends TestCase
         Sanctum::actingAs($user);
 
         $this->postJson('/api/v1/billing/checkout-session', [
-            'success_url' => 'http://localhost/billing/return?billing=success',
-            'cancel_url' => 'http://localhost/billing/return?billing=cancel',
-        ])->assertOk();
+            'success_url' => 'http://localhost:5173/plans?billing=success',
+            'cancel_url' => 'http://localhost:5173/plans?billing=cancel',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.subscription.0', 'Stripe is not configured. Add a secret key in Admin → Settings.');
+
+        $this->assertFalse($user->fresh()->isPro());
+    }
+
+    public function test_checkout_accepts_the_site_and_api_return_pages(): void
+    {
+        $user = User::factory()->create([
+            'pro_status' => User::PRO_STATUS_INACTIVE,
+        ]);
+        Sanctum::actingAs($user);
+
+        foreach ([
+            ['http://localhost:5173/plans?billing=success', 'http://localhost:5173/plans?billing=cancel'],
+            ['http://localhost/billing/return?billing=success', 'http://localhost/billing/return?billing=cancel'],
+        ] as [$successUrl, $cancelUrl]) {
+            $this->postJson('/api/v1/billing/checkout-session', [
+                'success_url' => $successUrl,
+                'cancel_url' => $cancelUrl,
+            ])
+                ->assertStatus(422)
+                ->assertJsonPath('errors.subscription.0', 'Stripe is not configured. Add a secret key in Admin → Settings.');
+        }
+
+        $this->assertFalse($user->fresh()->isPro());
     }
 
     public function test_billing_return_page_opens_the_app(): void
@@ -88,6 +95,40 @@ class BillingApiTest extends TestCase
         $this->get('/billing/return?billing=success')
             ->assertOk()
             ->assertSee('plnr:///(tabs)/account?billing=success', false);
+    }
+
+    public function test_checkout_allows_a_site_listed_in_checkout_or_cors_env(): void
+    {
+        $user = User::factory()->create([
+            'pro_status' => User::PRO_STATUS_INACTIVE,
+        ]);
+        Sanctum::actingAs($user);
+
+        $payload = [
+            'success_url' => 'https://myplnr.app/plans?billing=success',
+            'cancel_url' => 'https://myplnr.app/plans?billing=cancel',
+        ];
+
+        $this->postJson('/api/v1/billing/checkout-session', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.success_url.0', 'Return URL origin is not allowed.');
+
+        config(['services.pro.checkout_success_origins' => ['https://myplnr.app']]);
+
+        $this->postJson('/api/v1/billing/checkout-session', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.subscription.0', 'Stripe is not configured. Add a secret key in Admin → Settings.');
+
+        config([
+            'services.pro.checkout_success_origins' => ['http://localhost:5173'],
+            'cors.allowed_origins' => ['https://myplnr.app'],
+        ]);
+
+        $this->postJson('/api/v1/billing/checkout-session', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.subscription.0', 'Stripe is not configured. Add a secret key in Admin → Settings.');
+
+        $this->assertFalse($user->fresh()->isPro());
     }
 
     public function test_checkout_rejects_disallowed_origin(): void
