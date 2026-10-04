@@ -195,9 +195,17 @@ class SubscriptionService
 
         if (is_array($corsOrigins)) {
             foreach ($corsOrigins as $origin) {
-                if (is_string($origin) && $origin !== '' && $origin !== '*') {
-                    $raw[] = $origin;
+                if (! is_string($origin) || $origin === '') {
+                    continue;
                 }
+
+                if ($origin === '*') {
+                    $raw[] = (string) request()->headers->get('Origin', '');
+                    $raw[] = (string) request()->headers->get('Referer', '');
+                    continue;
+                }
+
+                $raw[] = $origin;
             }
         }
 

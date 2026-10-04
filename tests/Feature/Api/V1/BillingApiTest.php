@@ -131,6 +131,26 @@ class BillingApiTest extends TestCase
         $this->assertFalse($user->fresh()->isPro());
     }
 
+    public function test_checkout_allows_the_calling_site_when_cors_is_open(): void
+    {
+        config([
+            'services.pro.checkout_success_origins' => ['http://localhost:5173'],
+            'services.pro.web_app_url' => 'http://localhost:5173',
+            'cors.allowed_origins' => ['*'],
+        ]);
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson('/api/v1/billing/checkout-session', [
+            'success_url' => 'https://myplnr.app/plans?billing=success',
+            'cancel_url' => 'https://myplnr.app/plans?billing=cancel',
+        ], [
+            'Origin' => 'https://myplnr.app',
+            'Referer' => 'https://myplnr.app/plans',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.subscription.0', 'Stripe is not configured. Add a secret key in Admin → Settings.');
+    }
+
     public function test_checkout_rejects_disallowed_origin(): void
     {
         Sanctum::actingAs(User::factory()->create());
