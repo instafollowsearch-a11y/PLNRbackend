@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\Itinerary;
 use App\Models\PlanSession;
 use App\Models\User;
+use App\Services\Settings\AppSettings;
 use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
@@ -45,14 +46,21 @@ class SharedPlanItineraryMail extends Mailable
 
     public function content(): Content
     {
-        $slug = $this->planSession->planType?->slug;
+        $this->planSession->loadMissing('planType');
+        $slug = $this->planSession->planType?->slug ?? 'night_out';
+        $webBase = rtrim((string) (app(AppSettings::class)->webAppUrl() ?? ''), '/');
+        $viewUrl = $webBase !== ''
+            ? $webBase.'/plan/'.$slug.'/itinerary?session='.$this->planSession->uuid
+            : null;
 
         return new Content(
-            view: 'mail.itinerary',
+            view: 'mail.shared-plan-itinerary',
             with: [
                 'theme' => PlanTypeMailTheme::for($slug),
                 'planSession' => $this->planSession,
                 'content' => $this->itinerary->content ?? [],
+                'sharedBy' => $this->sharedBy,
+                'viewUrl' => $viewUrl,
             ],
         );
     }

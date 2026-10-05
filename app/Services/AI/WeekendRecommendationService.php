@@ -8,6 +8,7 @@ use App\Models\WeekendRecommendation;
 use App\Services\AI\Prompts\AbstractPlanPromptBuilder;
 use App\Services\Events\EventIngestionService;
 use App\Services\Events\EventSourceResolver;
+use App\Services\Events\FindLocalStopLinks;
 use App\Services\Events\NormalizedEvent;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
@@ -164,7 +165,7 @@ class WeekendRecommendationService
             'title' => $event->title,
             'venue' => $event->venue_name,
             'starts_at' => $event->starts_at?->toIso8601String(),
-            'url' => $event->url,
+            'url' => app(FindLocalStopLinks::class)->urlFor($event),
             'source' => $event->source,
             'description' => mb_substr((string) ($event->description ?? ''), 0, 240),
         ])->values()->all();
@@ -214,7 +215,7 @@ class WeekendRecommendationService
             'title' => $event->title,
             'venue' => $event->venue_name,
             'starts_at' => $event->starts_at?->toIso8601String(),
-            'url' => $event->url,
+            'url' => app(FindLocalStopLinks::class)->urlFor($event),
             'source' => $event->source,
         ])->values()->all();
 
@@ -394,7 +395,7 @@ PROMPT,
             'venue' => $event->venue_name,
             'starts_at' => $event->starts_at?->toIso8601String(),
             'day' => $this->dayName($event->starts_at),
-            'url' => $event->url,
+            'url' => app(FindLocalStopLinks::class)->urlFor($event),
             'image_url' => $event->image_url,
             'source' => $event->source,
             'reason' => $reason !== '' ? $reason : 'Matches your interests.',

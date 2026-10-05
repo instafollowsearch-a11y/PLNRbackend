@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\PlanMember;
+use App\Services\Events\FindLocalCredit;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -42,6 +43,7 @@ class PlanSessionResource extends JsonResource
             ]),
             'suggestions' => SuggestionResource::collection($this->whenLoaded('suggestions')),
             'itinerary' => new ItineraryResource($this->whenLoaded('itinerary')),
+            'event_credits' => FindLocalCredit::forCity($this->city),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

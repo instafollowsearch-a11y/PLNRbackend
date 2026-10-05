@@ -83,6 +83,7 @@ class PlanSessionApiTest extends TestCase
             'road_trip' => [
                 'start_location' => 'Austin',
                 'end_location' => 'Dallas',
+                'departure_date' => 'Friday, June 13',
                 'arrival_date' => 'Saturday, June 14',
                 'departure_time' => '8:00 AM',
                 'car_type' => 'SUV',

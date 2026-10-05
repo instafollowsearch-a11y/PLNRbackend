@@ -230,7 +230,7 @@ class ItineraryScheduleParser
                 }
             }
 
-            $arrival = $answers['arrival_date'] ?? null;
+            $arrival = $answers['departure_date'] ?? $answers['arrival_date'] ?? null;
 
             if (is_string($arrival) && $arrival !== '') {
                 try {

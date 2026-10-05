@@ -73,8 +73,10 @@ class EventContextService
             $parts[] = 'price='.$this->formatPriceRange($event);
         }
 
-        if ($event->url) {
-            $parts[] = $event->url;
+        $url = app(FindLocalStopLinks::class)->urlFor($event);
+
+        if ($url) {
+            $parts[] = $url;
         }
 
         return implode(' | ', array_values(array_filter($parts)));

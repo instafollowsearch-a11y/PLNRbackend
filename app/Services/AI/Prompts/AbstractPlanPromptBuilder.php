@@ -4,8 +4,10 @@ namespace App\Services\AI\Prompts;
 
 use App\Models\PlanSession;
 use App\Models\Suggestion;
-use App\Services\Places\AreaLimit;
 use App\Services\Events\EventContextService;
+use App\Services\Events\EventIngestionService;
+use App\Services\Events\EventSourceResolver;
+use App\Services\Places\AreaLimit;
 
 abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
 {
@@ -198,7 +200,7 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
     protected function travelStayLine(PlanSession $session): string
     {
         $answers = $session->answers ?? [];
-        $needsHotel = in_array((string) ($answers['needs_hotel'] ?? ''), ["I don't have a hotel", 'Already booked'], true);
+        $needsHotel = in_array((string) ($answers['needs_hotel'] ?? ''), ["I need a hotel", 'Already booked'], true);
         $isFlying = (string) ($answers['flying'] ?? '') === 'Yes';
 
         if (! $needsHotel && ! $isFlying) {
@@ -214,7 +216,7 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
                 ? $namedFromPick
                 : trim((string) ($answers['hotel_location'] ?? ''));
             $shuttle = trim((string) ($answers['hotel_shuttle'] ?? ''));
-            $isYes = (string) ($answers['needs_hotel'] ?? '') === "I don't have a hotel";
+            $isYes = (string) ($answers['needs_hotel'] ?? '') === "I need a hotel";
 
             if ($isYes && $location === '') {
                 $base = 'They need a hotel. Suggest 2 or 3 real hotels with https website links in the plan. Do not book the hotel.';
@@ -245,7 +247,13 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
     protected function appendLocalEventsContext(PlanSession $session, array $lines): array
     {
         $city = $session->city ?? ($session->answers['city'] ?? null);
-        $context = app(EventContextService::class)->formatForPrompt(is_string($city) ? $city : null);
+        $cityName = is_string($city) ? $city : null;
+
+        if ($cityName !== null && trim($cityName) !== '') {
+            app(EventIngestionService::class)->syncCity($cityName, app(EventSourceResolver::class));
+        }
+
+        $context = app(EventContextService::class)->formatForPrompt($cityName);
 
         if ($context !== '') {
             $lines[] = $context;

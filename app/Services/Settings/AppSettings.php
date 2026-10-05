@@ -5,6 +5,7 @@ namespace App\Services\Settings;
 use App\Models\AppSetting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class AppSettings
@@ -16,6 +17,8 @@ class AppSettings
     public const ANTHROPIC_API_KEY = 'anthropic_api_key';
 
     public const GOOGLE_PLACES_API_KEY = 'google_places_api_key';
+
+    public const FINDLOCAL_API_KEY = 'findlocal_api_key';
 
     public const ANTHROPIC_MODEL = 'anthropic_model';
 
@@ -47,6 +50,9 @@ class AppSettings
 
     public const STRIPE_FAKE = 'stripe_fake';
 
+    /** @var list<string> */
+    public const PLAN_CARD_TYPES = ['date_night', 'night_out', 'vacation', 'road_trip'];
+
     /** Non-secret defaults always present in the settings map. */
     public const DEFAULTS = [
         self::FREE_PLANS_PER_DAY => 5,
@@ -58,6 +64,7 @@ class AppSettings
     public const OVERRIDABLE = [
         self::ANTHROPIC_API_KEY,
         self::GOOGLE_PLACES_API_KEY,
+        self::FINDLOCAL_API_KEY,
         self::ANTHROPIC_MODEL,
         self::ANTHROPIC_URL,
         self::MAIL_FROM_ADDRESS,
@@ -78,6 +85,7 @@ class AppSettings
     public const SECRETS = [
         self::ANTHROPIC_API_KEY,
         self::GOOGLE_PLACES_API_KEY,
+        self::FINDLOCAL_API_KEY,
         self::STRIPE_SECRET,
         self::STRIPE_WEBHOOK_SECRET,
     ];
@@ -185,6 +193,13 @@ class AppSettings
         );
         $settings[self::GOOGLE_PLACES_API_KEY.'_hint'] = $this->maskSecret($this->googleApiKey());
 
+        $settings[self::FINDLOCAL_API_KEY.'_set'] = $this->findLocalApiKey() !== null;
+        $settings[self::FINDLOCAL_API_KEY.'_source'] = $this->sourceFor(
+            self::FINDLOCAL_API_KEY,
+            config('services.events.findlocal.api_key'),
+        );
+        $settings[self::FINDLOCAL_API_KEY.'_hint'] = $this->maskSecret($this->findLocalApiKey());
+
         $settings[self::ANTHROPIC_MODEL] = $this->anthropicModel();
         $settings[self::ANTHROPIC_MODEL.'_source'] = $this->sourceFor(
             self::ANTHROPIC_MODEL,
@@ -287,7 +302,114 @@ class AppSettings
         $settings[self::STRIPE_FAKE.'_source'] = $this->hasOverride(self::STRIPE_FAKE) ? 'admin' : 'env';
         $settings[self::STRIPE_FAKE.'_env'] = (bool) config('services.stripe.fake', false);
 
+        foreach (self::PLAN_CARD_TYPES as $planType) {
+            unset($settings[self::planCardImageKey($planType)]);
+        }
+
+        $settings['plan_card_images'] = $this->planCardImages();
+
         return $settings;
+    }
+
+    public static function planCardImageKey(string $planType): string
+    {
+        return 'plan_card_image_'.$planType;
+    }
+
+    public static function isPlanCardType(string $planType): bool
+    {
+        return in_array($planType, self::PLAN_CARD_TYPES, true);
+    }
+
+    /**
+     * Public image URL for each plan card. Null means the built-in photo.
+     *
+     * @return array<string, string|null>
+     */
+    public function planCardImages(?string $root = null): array
+    {
+        $images = [];
+
+        foreach (self::PLAN_CARD_TYPES as $planType) {
+            $images[$planType] = $this->publicPlanCardImageUrl($planType, $root);
+        }
+
+        return $images;
+    }
+
+    public function publicPlanCardImageUrl(string $planType, ?string $root = null): ?string
+    {
+        $stored = $this->get(self::planCardImageKey($planType));
+
+        if (! is_string($stored) || trim($stored) === '') {
+            return null;
+        }
+
+        $stored = trim($stored);
+
+        if (str_starts_with($stored, 'file:')) {
+            $base = rtrim($root ?? (string) config('app.url'), '/');
+
+            $version = '';
+            $path = $this->planCardFilePath($planType);
+
+            if ($path !== null && Storage::disk('public')->exists($path)) {
+                $version = '?v='.Storage::disk('public')->lastModified($path);
+            }
+
+            return $base.'/api/v1/plan-card-images/'.$planType.'/file'.$version;
+        }
+
+        return $stored;
+    }
+
+    public function planCardFilePath(string $planType): ?string
+    {
+        $stored = $this->get(self::planCardImageKey($planType));
+
+        if (! is_string($stored) || ! str_starts_with($stored, 'file:')) {
+            return null;
+        }
+
+        $path = substr($stored, 5);
+
+        if (! preg_match('#^plan-cards/[a-z_]+\.[a-z0-9]+$#', $path)) {
+            return null;
+        }
+
+        return $path;
+    }
+
+    public function setPlanCardImageUrl(string $planType, string $url): void
+    {
+        $this->deletePlanCardFile($planType);
+        $this->set(self::planCardImageKey($planType), $url);
+    }
+
+    public function setPlanCardImageFile(string $planType, string $path): void
+    {
+        $existing = $this->planCardFilePath($planType);
+
+        if ($existing !== null && $existing !== $path) {
+            Storage::disk('public')->delete($existing);
+        }
+
+        $this->set(self::planCardImageKey($planType), 'file:'.$path);
+    }
+
+    public function clearPlanCardImage(string $planType): void
+    {
+        $this->deletePlanCardFile($planType);
+        $this->forget(self::planCardImageKey($planType));
+    }
+
+    private function deletePlanCardFile(string $planType): void
+    {
+        $path = $this->planCardFilePath($planType);
+
+        if ($path !== null) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     public function set(string $key, mixed $value): void
@@ -348,6 +470,16 @@ class AppSettings
 
         return $this->resolveString(
             self::GOOGLE_PLACES_API_KEY,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function findLocalApiKey(): ?string
+    {
+        $fallback = config('services.events.findlocal.api_key');
+
+        return $this->resolveString(
+            self::FINDLOCAL_API_KEY,
             is_string($fallback) ? $fallback : null,
         );
     }

@@ -25,7 +25,7 @@
     @if (!empty($urls['web']))
         <p style="margin:0 0 12px 0;">
             <a href="{{ $urls['web'] }}" style="display:inline-block;background:{{ $theme['accent'] }};color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14px;padding:12px 18px;border-radius:8px;">
-                Open invite on web
+                View the plans shared with you
             </a>
         </p>
     @endif

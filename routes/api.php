@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\HotelSuggestionController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PlacePhotoController;
+use App\Http\Controllers\Api\V1\PlanCardImageController;
 use App\Http\Controllers\Api\V1\PlanLimitController;
 use App\Http\Controllers\Api\V1\PlanSessionController;
 use App\Http\Controllers\Api\V1\PlanShareController;
@@ -26,6 +27,9 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/health', [HealthController::class, 'show']);
     Route::get('/booking-config', [BookingConfigController::class, 'show']);
     Route::get('/billing-config', [BillingConfigController::class, 'show']);
+    Route::get('/plan-card-images', [PlanCardImageController::class, 'index']);
+    Route::get('/plan-card-images/{planType}/file', [PlanCardImageController::class, 'file'])
+        ->where('planType', 'date_night|night_out|vacation|road_trip');
     Route::get('/place-photos/{token}', [PlacePhotoController::class, 'show'])
         ->where('token', '[A-Za-z0-9]+');
     Route::middleware('throttle:geocode')->group(function (): void {
@@ -97,6 +101,9 @@ Route::prefix('v1')->group(function (): void {
             Route::patch('/users/{user}', [AdminUserController::class, 'update']);
             Route::get('/settings', [AdminSettingsController::class, 'show']);
             Route::patch('/settings', [AdminSettingsController::class, 'update']);
+            Route::post('/plan-card-images', [PlanCardImageController::class, 'store']);
+            Route::delete('/plan-card-images/{planType}', [PlanCardImageController::class, 'destroy'])
+                ->where('planType', 'date_night|night_out|vacation|road_trip');
         });
     });
 

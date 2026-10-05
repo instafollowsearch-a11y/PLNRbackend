@@ -84,6 +84,9 @@ return [
             'api_key' => env('ALLEVENTS_API_KEY'),
             'url' => env('ALLEVENTS_API_URL', 'https://allevents.in/api/events/list/'),
         ],
+        'findlocal' => [
+            'api_key' => env('FINDLOCAL_API_KEY'),
+        ],
     ],
 
     'nominatim' => [

@@ -76,6 +76,7 @@ class StorePlanSessionValidationTest extends TestCase
             'answers' => [
                 'start_location' => 'Austin',
                 'end_location' => 'Dallas',
+                'departure_date' => 'Friday',
                 'arrival_date' => 'Saturday',
                 'departure_time' => '8 AM',
                 'car_type' => 'SUV',

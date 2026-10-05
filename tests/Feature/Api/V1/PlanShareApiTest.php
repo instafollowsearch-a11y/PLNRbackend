@@ -4,6 +4,7 @@ namespace Tests\Feature\Api\V1;
 
 use App\Mail\PlanShareAcceptedMail;
 use App\Mail\PlanShareInviteMail;
+use App\Mail\SharedPlanItineraryMail;
 use App\Models\Itinerary;
 use App\Models\PlanMember;
 use App\Models\PlanSession;
@@ -40,7 +41,16 @@ class PlanShareApiTest extends TestCase
         $this->getJson("/api/v1/plan-shares/{$token}")
             ->assertOk()
             ->assertJsonPath('data.invitee_email', 'friend@plnr.test')
-            ->assertJsonPath('data.account_exists', true);
+            ->assertJsonPath('data.account_exists', true)
+            ->assertJsonPath('data.itinerary.title', 'Austin Night')
+            ->assertJsonPath('data.itinerary.stops.0.name', 'Bar');
+
+        Mail::assertSent(PlanShareInviteMail::class, function (PlanShareInviteMail $mail): bool {
+            $html = $mail->render();
+
+            return str_contains($html, 'View the plans shared with you')
+                && ! str_contains($html, 'Bar');
+        });
 
         Sanctum::actingAs($invitee);
         $this->postJson("/api/v1/plan-shares/{$token}/accept")
@@ -48,6 +58,12 @@ class PlanShareApiTest extends TestCase
             ->assertJsonPath('data.member.role', PlanMember::ROLE_VIEWER);
 
         Mail::assertSent(PlanShareAcceptedMail::class);
+        Mail::assertSent(SharedPlanItineraryMail::class, function (SharedPlanItineraryMail $mail): bool {
+            $html = $mail->render();
+
+            return str_contains($html, 'View the plans shared with you')
+                && ! str_contains($html, 'Bar');
+        });
 
         Sanctum::actingAs($invitee);
         $this->getJson('/api/v1/plan-sessions')

@@ -12,6 +12,7 @@ class RoadTripAnswerRules
         return [
             'answers.start_location' => ['required', 'string', 'max:255'],
             'answers.end_location' => ['required', 'string', 'max:255'],
+            'answers.departure_date' => ['required', 'string', 'max:255'],
             'answers.arrival_date' => ['required', 'string', 'max:255'],
             'answers.departure_time' => ['required', 'string', 'max:255'],
             'answers.car_type' => ['required', 'string', 'max:255'],
@@ -20,8 +21,8 @@ class RoadTripAnswerRules
             'answers.interests' => ['required', 'string', 'min:3'],
             'answers.food_preferences' => ['required', 'string', 'min:3'],
             'answers.group_size' => ['required', 'integer', 'min:1', 'max:20'],
-            'answers.needs_hotel' => ['required', 'string', "in:I don't have a hotel,Already booked,I don't need a hotel"],
-            'answers.hotel_pick' => ['required_if:answers.needs_hotel,I don\'t have a hotel', 'nullable', 'string', 'max:255'],
+            'answers.needs_hotel' => ['required', 'string', "in:I need a hotel,Already booked,I don't need a hotel"],
+            'answers.hotel_pick' => ['required_if:answers.needs_hotel,I need a hotel', 'nullable', 'string', 'max:255'],
             'answers.hotel_location' => ['required_if:answers.needs_hotel,Already booked', 'nullable', 'string', 'max:255'],
             'answers.hotel_shuttle' => ['required_if:answers.needs_hotel,Already booked', 'nullable', 'string', 'in:Yes,No,Not sure'],
         ];

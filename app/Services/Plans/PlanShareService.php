@@ -9,6 +9,8 @@ use App\Models\PlanMember;
 use App\Models\PlanSession;
 use App\Models\PlanShare;
 use App\Models\User;
+use App\Services\Events\FindLocalCredit;
+use App\Services\Events\FindLocalStopLinks;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
 use App\Services\Settings\AppSettings;
 use Illuminate\Support\Facades\DB;
@@ -59,7 +61,7 @@ class PlanShareService
      */
     public function publicPreview(PlanShare $share): array
     {
-        $share->loadMissing(['planSession.planType', 'inviter']);
+        $share->loadMissing(['planSession.planType', 'planSession.itinerary', 'inviter']);
 
         $accountExists = User::query()
             ->whereRaw('LOWER(email) = ?', [strtolower($share->invitee_email)])
@@ -80,6 +82,8 @@ class PlanShareService
                     'label' => $share->planSession?->planType?->label,
                 ],
             ],
+            'itinerary' => $this->itineraryPreview($share),
+            'event_credits' => FindLocalCredit::forCity($share->planSession?->city),
             'urls' => $this->inviteUrls($share),
             'app_store_url' => $this->settings->appStoreUrl(),
             'play_store_url' => $this->settings->playStoreUrl(),
@@ -136,6 +140,22 @@ class PlanShareService
 
             return $member;
         });
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function itineraryPreview(PlanShare $share): ?array
+    {
+        $content = $share->planSession?->itinerary?->content;
+
+        if (! is_array($content)) {
+            return null;
+        }
+
+        $city = $share->planSession?->city;
+
+        return app(FindLocalStopLinks::class)->attach($content, is_string($city) ? $city : null);
     }
 
     /**
