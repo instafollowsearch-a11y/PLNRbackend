@@ -43,12 +43,12 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
     {
         $answers = $session->answers ?? [];
 
-        return implode("\n", $this->withAreaLimit($session, $this->withOpenToSuggestions($session, [
+        return implode("\n", $this->withAreaLimit($session, $this->withOpenToSuggestions($session, $this->withLocalEvents($session, [
             'Create a full-day romantic date itinerary as compact JSON only.',
             $this->formatAnswers($session),
             $this->formatSuggestionContext($suggestion),
             'Event count requested: '.($answers['event_count'] ?? ''),
-        ])));
+        ]))));
     }
 
     public function normalizeSuggestionPayload(array $item): array

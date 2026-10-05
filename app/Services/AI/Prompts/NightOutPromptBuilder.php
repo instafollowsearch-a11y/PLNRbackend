@@ -43,7 +43,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
         $answers = $session->answers ?? [];
         $payload = $suggestion->payload ?? [];
 
-        return implode("\n", $this->withAreaLimit($session, $this->withOpenToSuggestions($session, [
+        return implode("\n", $this->withAreaLimit($session, $this->withOpenToSuggestions($session, $this->withLocalEvents($session, [
             'Create a detailed evening itinerary as compact JSON only.',
             'City: '.($session->city ?? $answers['city'] ?? ''),
             'Group size: '.($answers['group_size'] ?? ''),
@@ -54,7 +54,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
             'Description: '.($payload['description'] ?? ''),
             'Time slot: '.($payload['time_slot'] ?? ''),
             'Venues: '.implode(', ', $payload['venues'] ?? []),
-        ])));
+        ]))));
     }
 
     public function normalizeSuggestionPayload(array $item): array

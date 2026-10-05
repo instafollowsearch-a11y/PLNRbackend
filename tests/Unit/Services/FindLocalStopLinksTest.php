@@ -49,6 +49,49 @@ class FindLocalStopLinksTest extends TestCase
         );
     }
 
+    public function test_attaches_the_link_when_the_stop_uses_the_venue_or_a_shorter_name(): void
+    {
+        Event::factory()->create([
+            'source' => 'findlocal',
+            'external_id' => 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            'title' => 'Sarah Sharp Quintet',
+            'venue_name' => 'Elephant Room',
+            'city' => 'Austin, TX',
+            'starts_at' => now()->addDay(),
+        ]);
+        Event::factory()->create([
+            'source' => 'findlocal',
+            'external_id' => 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+            'title' => 'Tuesday Trivia Night',
+            'venue_name' => 'Meanwhile Brewing',
+            'city' => 'Austin, TX',
+            'starts_at' => now()->addDays(2),
+        ]);
+
+        $content = app(FindLocalStopLinks::class)->attach([
+            'stops' => [
+                ['name' => 'Sarah Sharp', 'activity' => 'Jazz set'],
+                ['name' => 'Drinks', 'activity' => 'Catch Tuesday Trivia Night'],
+                ['name' => 'Elephant Room', 'activity' => 'Live music'],
+                ['name' => 'Dinner', 'activity' => 'Tacos'],
+            ],
+        ], 'Austin, TX');
+
+        $this->assertSame(
+            'https://findlocal.community/event/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            $content['stops'][0]['findlocal_url'],
+        );
+        $this->assertSame(
+            'https://findlocal.community/event/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+            $content['stops'][1]['findlocal_url'],
+        );
+        $this->assertSame(
+            'https://findlocal.community/event/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            $content['stops'][2]['findlocal_url'],
+        );
+        $this->assertArrayNotHasKey('findlocal_url', $content['stops'][3]);
+    }
+
     public function test_leaves_stops_alone_when_the_city_has_no_find_local_events(): void
     {
         $content = [

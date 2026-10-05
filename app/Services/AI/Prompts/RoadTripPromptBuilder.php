@@ -33,11 +33,11 @@ class RoadTripPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string
     {
-        return implode("\n", $this->withTravelStay($session, $this->withOpenToSuggestions($session, [
+        return implode("\n", $this->withTravelStay($session, $this->withOpenToSuggestions($session, $this->withLocalEvents($session, [
             'Create a detailed road trip itinerary with times for each leg as compact JSON only.',
             $this->formatAnswers($session),
             $this->formatSuggestionContext($suggestion),
-        ])));
+        ]))));
     }
 
     public function normalizeSuggestionPayload(array $item): array

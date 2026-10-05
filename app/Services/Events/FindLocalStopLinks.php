@@ -29,14 +29,14 @@ class FindLocalStopLinks
      */
     public function attach(array $content, ?string $city): array
     {
-        $pages = $this->pagesForCity($city);
+        $events = $this->eventsForCity($city);
 
-        if ($pages === []) {
+        if ($events === []) {
             return $content;
         }
 
         if (isset($content['stops']) && is_array($content['stops'])) {
-            $content['stops'] = $this->attachStops($content['stops'], $pages);
+            $content['stops'] = $this->attachStops($content['stops'], $events);
         }
 
         if (! isset($content['days']) || ! is_array($content['days'])) {
@@ -48,7 +48,7 @@ class FindLocalStopLinks
                 continue;
             }
 
-            $day['stops'] = $this->attachStops($day['stops'], $pages);
+            $day['stops'] = $this->attachStops($day['stops'], $events);
             $content['days'][$index] = $day;
         }
 
@@ -56,48 +56,53 @@ class FindLocalStopLinks
     }
 
     /**
-     * @return array<string, string>
+     * @return list<array{title: ?string, venue: ?string, url: string}>
      */
-    private function pagesForCity(?string $city): array
+    private function eventsForCity(?string $city): array
     {
         if (! is_string($city) || trim($city) === '') {
             return [];
         }
 
-        $pages = [];
+        $events = [];
 
-        $events = Event::query()
+        $rows = Event::query()
             ->where('source', 'findlocal')
             ->forCity($city)
             ->where('external_id', '!=', '')
             ->get();
 
-        foreach ($events as $event) {
-            $title = $this->normalize((string) $event->title);
+        foreach ($rows as $event) {
+            $title = $this->phrase((string) $event->title);
+            $venue = $this->phrase((string) $event->venue_name);
 
-            if ($title === null || strlen($title) < 8) {
+            if ($title === null && $venue === null) {
                 continue;
             }
 
-            $pages[$title] = $this->pageUrl($event);
+            $events[] = [
+                'title' => $title,
+                'venue' => $venue,
+                'url' => $this->pageUrl($event),
+            ];
         }
 
-        return $pages;
+        return $events;
     }
 
     /**
      * @param  list<mixed>  $stops
-     * @param  array<string, string>  $pages
+     * @param  list<array{title: ?string, venue: ?string, url: string}>  $events
      * @return list<mixed>
      */
-    private function attachStops(array $stops, array $pages): array
+    private function attachStops(array $stops, array $events): array
     {
         foreach ($stops as $index => $stop) {
             if (! is_array($stop)) {
                 continue;
             }
 
-            $url = $this->match((string) ($stop['name'] ?? ''), $pages);
+            $url = $this->matchStop($stop, $events);
 
             if ($url === null) {
                 continue;
@@ -111,27 +116,66 @@ class FindLocalStopLinks
     }
 
     /**
-     * @param  array<string, string>  $pages
+     * @param  array<string, mixed>  $stop
+     * @param  list<array{title: ?string, venue: ?string, url: string}>  $events
      */
-    private function match(string $stopName, array $pages): ?string
+    private function matchStop(array $stop, array $events): ?string
     {
-        $name = $this->normalize($stopName);
+        $name = $this->normalize((string) ($stop['name'] ?? ''));
+        $text = $this->normalize(implode(' ', [
+            (string) ($stop['name'] ?? ''),
+            (string) ($stop['activity'] ?? ''),
+            (string) ($stop['notes'] ?? ''),
+        ]));
 
-        if ($name === null) {
+        if ($text === null) {
             return null;
         }
 
-        if (isset($pages[$name])) {
-            return $pages[$name];
-        }
+        foreach ($events as $event) {
+            $title = $event['title'];
 
-        foreach ($pages as $title => $url) {
-            if (str_contains($name, $title)) {
-                return $url;
+            if ($title !== null && str_contains($text, $title)) {
+                return $event['url'];
+            }
+
+            if ($name !== null && $title !== null && strlen($name) >= 8 && str_contains($title, $name)) {
+                return $event['url'];
             }
         }
 
+        $venueUrls = [];
+
+        if ($name !== null) {
+            foreach ($events as $event) {
+                $venue = $event['venue'];
+
+                if ($venue === null) {
+                    continue;
+                }
+
+                if (str_contains($name, $venue) || str_contains($venue, $name)) {
+                    $venueUrls[$event['url']] = true;
+                }
+            }
+        }
+
+        if (count($venueUrls) === 1) {
+            return array_key_first($venueUrls);
+        }
+
         return null;
+    }
+
+    private function phrase(string $value): ?string
+    {
+        $normalized = $this->normalize($value);
+
+        if ($normalized === null || strlen($normalized) < 8) {
+            return null;
+        }
+
+        return $normalized;
     }
 
     private function pageUrl(Event $event): string

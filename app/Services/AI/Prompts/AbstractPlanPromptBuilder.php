@@ -262,6 +262,23 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
         return $lines;
     }
 
+    /**
+     * @param  list<string>  $lines
+     * @return list<string>
+     */
+    protected function withLocalEvents(PlanSession $session, array $lines): array
+    {
+        $withEvents = $this->appendLocalEventsContext($session, $lines);
+
+        if ($withEvents === $lines) {
+            return $lines;
+        }
+
+        $withEvents[] = 'If a stop is one of those local events, set venue_url to that event URL exactly.';
+
+        return $withEvents;
+    }
+
     protected function formatSuggestionContext(Suggestion $suggestion): string
     {
         $payload = $suggestion->payload ?? [];

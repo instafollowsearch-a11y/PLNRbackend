@@ -50,7 +50,7 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
         $lines[] = $this->formatAnswers($session);
         $lines[] = $this->formatSuggestionContext($suggestion);
 
-        return implode("\n", $this->withTravelStay($session, $this->withOpenToSuggestions($session, $lines)));
+        return implode("\n", $this->withTravelStay($session, $this->withOpenToSuggestions($session, $this->withLocalEvents($session, $lines))));
     }
 
     public function normalizeSuggestionPayload(array $item): array
