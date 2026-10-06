@@ -69,7 +69,7 @@ class PlanQuotaService
         }
 
         throw new HttpResponseException(response()->json([
-            'message' => 'Monthly free plan limit reached. Create an account or try again next month.',
+            'message' => 'You\'ve used your free plans for this month. Upgrade to Pro to keep planning.',
             'data' => [
                 'limit' => $this->monthlyLimit(),
                 'remaining' => 0,

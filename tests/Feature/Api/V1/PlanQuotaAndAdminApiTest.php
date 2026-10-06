@@ -61,7 +61,7 @@ class PlanQuotaAndAdminApiTest extends TestCase
             'answers' => $this->answers(),
         ])
             ->assertStatus(429)
-            ->assertJsonPath('message', 'Monthly free plan limit reached. Create an account or try again next month.')
+            ->assertJsonPath('message', 'You\'ve used your free plans for this month. Upgrade to Pro to keep planning.')
             ->assertJsonPath('data.window', 'month');
     }
 

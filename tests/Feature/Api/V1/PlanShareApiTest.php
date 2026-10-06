@@ -69,6 +69,11 @@ class PlanShareApiTest extends TestCase
         $this->getJson('/api/v1/plan-sessions')
             ->assertOk()
             ->assertJsonFragment(['uuid' => $session->uuid, 'access_role' => 'viewer']);
+
+        $this->getJson("/api/v1/plan-sessions/{$session->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.plan_session.access_role', 'viewer')
+            ->assertJsonPath('data.plan_session.shared_by.name', $owner->name);
     }
 
     public function test_register_with_invite_token_accepts_share(): void

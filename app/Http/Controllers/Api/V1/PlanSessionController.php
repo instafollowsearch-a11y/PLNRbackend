@@ -116,7 +116,7 @@ class PlanSessionController extends Controller
     {
         $this->authorize('view', $planSession);
 
-        $planSession->load(['planType', 'suggestions', 'itinerary']);
+        $planSession->load(['planType', 'suggestions', 'itinerary', 'user']);
 
         return response()->json([
             'data' => [
