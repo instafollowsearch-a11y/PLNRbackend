@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\ChangePasswordRequest;
+use App\Http\Requests\Api\V1\DeleteAccountRequest;
 use App\Http\Requests\Api\V1\ForgotPasswordRequest;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Requests\Api\V1\RegisterRequest;
@@ -12,6 +13,7 @@ use App\Http\Requests\Api\V1\UpdateUserProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Models\PlanShare;
 use App\Models\User;
+use App\Services\Accounts\AccountDeletionService;
 use App\Services\Plans\PlanShareService;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +28,7 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly PlanShareService $planShares,
+        private readonly AccountDeletionService $accountDeletion,
     ) {}
 
     public function register(RegisterRequest $request): JsonResponse
@@ -189,6 +192,18 @@ class AuthController extends Controller
         return response()->json([
             'data' => null,
             'message' => 'Password updated.',
+        ]);
+    }
+
+    public function destroy(DeleteAccountRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $this->accountDeletion->delete($user);
+
+        return response()->json([
+            'data' => null,
+            'message' => 'Account deleted.',
         ]);
     }
 }

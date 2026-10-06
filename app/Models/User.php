@@ -39,6 +39,8 @@ class User extends Authenticatable
         'stripe_subscription_id',
         'pro_status',
         'pro_current_period_end',
+        'google_play_product_id',
+        'google_play_purchase_token',
         'password',
     ];
 

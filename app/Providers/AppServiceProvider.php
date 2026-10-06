@@ -10,6 +10,8 @@ use App\Services\AI\AnthropicClient;
 use App\Services\Bookings\BookingFulfillmentService;
 use App\Services\Bookings\BookingService;
 use App\Services\Bookings\ItineraryScheduleParser;
+use App\Services\Billing\GooglePlaySubscriptionVerifier;
+use App\Services\Billing\PlaySubscriptionVerifier;
 use App\Services\Payments\PaymentGateway;
 use App\Services\Payments\PaymentGatewayResolver;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(AiChatClient::class, AnthropicClient::class);
+        $this->app->singleton(PlaySubscriptionVerifier::class, GooglePlaySubscriptionVerifier::class);
 
         $this->app->singleton(PaymentGateway::class, function ($app) {
             return $app->make(PaymentGatewayResolver::class)->resolve();

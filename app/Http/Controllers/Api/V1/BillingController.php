@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\CreateBillingCheckoutRequest;
 use App\Http\Requests\Api\V1\CreateBillingPortalRequest;
+use App\Http\Requests\Api\V1\VerifyPlaySubscriptionRequest;
 use App\Http\Resources\UserResource;
+use App\Services\Billing\PlaySubscriptionService;
 use App\Services\Payments\SubscriptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +16,7 @@ class BillingController extends Controller
 {
     public function __construct(
         private readonly SubscriptionService $subscriptions,
+        private readonly PlaySubscriptionService $playSubscriptions,
     ) {}
 
     public function checkout(CreateBillingCheckoutRequest $request): JsonResponse
@@ -65,6 +68,24 @@ class BillingController extends Controller
                 'user' => new UserResource($updated),
             ],
             'message' => 'Pro subscription canceled.',
+        ]);
+    }
+
+    public function play(VerifyPlaySubscriptionRequest $request): JsonResponse
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        $updated = $this->playSubscriptions->grant(
+            $user,
+            (string) $request->validated('product_id'),
+            (string) $request->validated('purchase_token'),
+        );
+
+        return response()->json([
+            'data' => [
+                'user' => new UserResource($updated),
+            ],
+            'message' => 'Google Play subscription verified.',
         ]);
     }
 }

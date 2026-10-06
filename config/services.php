@@ -54,6 +54,12 @@ return [
         'ops_email' => env('BOOKING_OPS_EMAIL'),
     ],
 
+    'google_play' => [
+        'package_name' => env('GOOGLE_PLAY_PACKAGE_NAME', 'com.plnr.app'),
+        'product_id' => env('GOOGLE_PLAY_PRODUCT_ID', 'plnr_pro_monthly'),
+        'service_account_json' => env('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON'),
+    ],
+
     'pro' => [
         'monthly_price_cents' => (int) env('PRO_MONTHLY_PRICE_CENTS', 999),
         'currency' => env('PRO_CURRENCY', 'usd'),

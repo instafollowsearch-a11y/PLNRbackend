@@ -61,6 +61,7 @@ Route::prefix('v1')->group(function (): void {
         Route::middleware('throttle:auth')->group(function (): void {
             Route::patch('/user', [AuthController::class, 'update']);
             Route::post('/user/password', [AuthController::class, 'changePassword']);
+            Route::delete('/user', [AuthController::class, 'destroy']);
         });
         Route::get('/events', [EventController::class, 'index']);
         Route::get('/plan-sessions', [PlanSessionController::class, 'index']);
@@ -71,6 +72,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/billing/portal-session', [BillingController::class, 'portal'])
             ->middleware('throttle:booking');
         Route::post('/billing/cancel-subscription', [BillingController::class, 'cancel'])
+            ->middleware('throttle:booking');
+        Route::post('/billing/play/subscription', [BillingController::class, 'play'])
             ->middleware('throttle:booking');
 
         Route::middleware('pro')->group(function (): void {
