@@ -69,6 +69,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/plan-sessions', [PlanSessionController::class, 'index']);
         Route::post('/plan-sessions/{planSession}/claim', [PlanSessionController::class, 'claim']);
         Route::post('/plan-shares/{token}/accept', [PlanShareController::class, 'accept']);
+        Route::post('/plan-sessions/{planSession}/shares', [PlanShareController::class, 'store'])
+            ->middleware('throttle:email');
         Route::post('/billing/checkout-session', [BillingController::class, 'checkout'])
             ->middleware('throttle:booking');
         Route::post('/billing/portal-session', [BillingController::class, 'portal'])
@@ -86,8 +88,6 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('throttle:ai');
             Route::get('/weekend-recommendations/{weekendRecommendation}', [WeekendRecommendationController::class, 'show']);
             Route::post('/weekend-recommendations/{weekendRecommendation}/send-email', [WeekendRecommendationController::class, 'sendEmail'])
-                ->middleware('throttle:email');
-            Route::post('/plan-sessions/{planSession}/shares', [PlanShareController::class, 'store'])
                 ->middleware('throttle:email');
         });
 

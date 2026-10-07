@@ -159,15 +159,34 @@ class PlanShareApiTest extends TestCase
             ->assertStatus(422);
     }
 
-    public function test_non_pro_cannot_share(): void
+    public function test_free_owner_can_share_and_invitee_can_view(): void
     {
-        $owner = User::factory()->create();
+        Mail::fake();
+
+        $owner = User::factory()->create([
+            'pro_status' => User::PRO_STATUS_INACTIVE,
+        ]);
+        $invitee = User::factory()->create(['email' => 'friend@plnr.test']);
         $session = $this->ownedCompletedSession($owner);
 
+        $this->assertFalse($owner->isPro());
+
         Sanctum::actingAs($owner);
-        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+        $this->getJson('/api/v1/weekend-recommendations')->assertForbidden();
+
+        $token = $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
             'email' => 'friend@plnr.test',
-        ])->assertForbidden();
+        ])->assertCreated()->json('data.share.token');
+
+        Sanctum::actingAs($invitee);
+        $this->postJson("/api/v1/plan-shares/{$token}/accept")
+            ->assertOk()
+            ->assertJsonPath('data.member.role', PlanMember::ROLE_VIEWER);
+
+        $this->getJson("/api/v1/plan-sessions/{$session->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.plan_session.access_role', 'viewer')
+            ->assertJsonPath('data.plan_session.shared_by.name', $owner->name);
     }
 
     private function ownedCompletedSession(User $owner): PlanSession

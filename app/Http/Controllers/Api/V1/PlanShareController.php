@@ -8,7 +8,6 @@ use App\Http\Resources\PlanSessionResource;
 use App\Models\PlanSession;
 use App\Models\PlanShare;
 use App\Services\Plans\PlanShareService;
-use App\Services\Pro\ProAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,14 +15,12 @@ class PlanShareController extends Controller
 {
     public function __construct(
         private readonly PlanShareService $shares,
-        private readonly ProAccess $proAccess,
     ) {}
 
     public function store(StorePlanShareRequest $request, PlanSession $planSession): JsonResponse
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
-        $this->proAccess->assertActive($user);
 
         $share = $this->shares->createShare(
             $planSession,
