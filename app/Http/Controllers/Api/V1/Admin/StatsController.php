@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\PageVisit;
 use App\Models\PlanSession;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,17 @@ class StatsController extends Controller
                     ->where('created_at', '>=', now()->startOfDay())
                     ->count(),
                 'plan_sessions_total' => PlanSession::query()->count(),
+                'pro_users_total' => User::query()->where(function ($query): void {
+                    $query->where('pro_status', User::PRO_STATUS_ACTIVE)
+                        ->orWhere(function ($query): void {
+                            $query->where('pro_status', User::PRO_STATUS_PAST_DUE)
+                                ->whereNotNull('pro_current_period_end')
+                                ->where('pro_current_period_end', '>', now());
+                        });
+                })->count(),
+                'visits_today' => PageVisit::query()
+                    ->where('occurred_at', '>=', now()->startOfDay())
+                    ->count(),
             ],
             'message' => 'Admin stats retrieved.',
         ]);

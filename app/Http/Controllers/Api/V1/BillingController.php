@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\CreateBillingCheckoutRequest;
 use App\Http\Requests\Api\V1\CreateBillingPortalRequest;
+use App\Http\Requests\Api\V1\VerifyAppleSubscriptionRequest;
 use App\Http\Requests\Api\V1\VerifyPlaySubscriptionRequest;
 use App\Http\Resources\UserResource;
+use App\Models\User;
+use App\Services\Billing\AppleSubscriptionService;
 use App\Services\Billing\PlaySubscriptionService;
 use App\Services\Payments\SubscriptionService;
 use Illuminate\Http\JsonResponse;
@@ -17,11 +20,12 @@ class BillingController extends Controller
     public function __construct(
         private readonly SubscriptionService $subscriptions,
         private readonly PlaySubscriptionService $playSubscriptions,
+        private readonly AppleSubscriptionService $appleSubscriptions,
     ) {}
 
     public function checkout(CreateBillingCheckoutRequest $request): JsonResponse
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         $session = $this->subscriptions->createCheckoutSession(
@@ -41,7 +45,7 @@ class BillingController extends Controller
 
     public function portal(CreateBillingPortalRequest $request): JsonResponse
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         $session = $this->subscriptions->createPortalSession(
@@ -59,7 +63,7 @@ class BillingController extends Controller
 
     public function cancel(Request $request): JsonResponse
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
         $updated = $this->subscriptions->cancelSubscription($user);
 
@@ -73,7 +77,7 @@ class BillingController extends Controller
 
     public function play(VerifyPlaySubscriptionRequest $request): JsonResponse
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
         $updated = $this->playSubscriptions->grant(
             $user,
@@ -86,6 +90,24 @@ class BillingController extends Controller
                 'user' => new UserResource($updated),
             ],
             'message' => 'Google Play subscription verified.',
+        ]);
+    }
+
+    public function apple(VerifyAppleSubscriptionRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $updated = $this->appleSubscriptions->grant(
+            $user,
+            (string) $request->validated('product_id'),
+            (string) $request->validated('transaction_id'),
+        );
+
+        return response()->json([
+            'data' => [
+                'user' => new UserResource($updated),
+            ],
+            'message' => 'App Store subscription verified.',
         ]);
     }
 }

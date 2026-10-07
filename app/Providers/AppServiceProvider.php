@@ -4,17 +4,20 @@ namespace App\Providers;
 
 use App\Mail\ResetPasswordMail;
 use App\Models\User;
-use App\Support\Auth\PasswordResetUrl;
 use App\Services\AI\AiChatClient;
 use App\Services\AI\AnthropicClient;
+use App\Services\Billing\AppleSubscriptionVerifier;
+use App\Services\Billing\AppStoreSubscriptionVerifier;
+use App\Services\Billing\GooglePlaySubscriptionVerifier;
+use App\Services\Billing\PlaySubscriptionVerifier;
 use App\Services\Bookings\BookingFulfillmentService;
 use App\Services\Bookings\BookingService;
 use App\Services\Bookings\ItineraryScheduleParser;
-use App\Services\Billing\GooglePlaySubscriptionVerifier;
-use App\Services\Billing\PlaySubscriptionVerifier;
 use App\Services\Payments\PaymentGateway;
 use App\Services\Payments\PaymentGatewayResolver;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
+use App\Services\Settings\AppSettings;
+use App\Support\Auth\PasswordResetUrl;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -31,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(AiChatClient::class, AnthropicClient::class);
         $this->app->singleton(PlaySubscriptionVerifier::class, GooglePlaySubscriptionVerifier::class);
+        $this->app->singleton(AppleSubscriptionVerifier::class, AppStoreSubscriptionVerifier::class);
 
         $this->app->singleton(PaymentGateway::class, function ($app) {
             return $app->make(PaymentGatewayResolver::class)->resolve();
@@ -80,7 +84,7 @@ class AppServiceProvider extends ServiceProvider
                 ? $session->uuid
                 : (string) ($request->route('planSession') ?? $request->user()?->id ?? 'guest');
 
-            $aiPerHour = app(\App\Services\Settings\AppSettings::class)->rateLimitAiPerHour();
+            $aiPerHour = app(AppSettings::class)->rateLimitAiPerHour();
 
             return Limit::perHour($aiPerHour)
                 ->by($request->ip().':'.$sessionKey);
@@ -105,6 +109,10 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('geocode', function (Request $request): Limit {
             return Limit::perMinute(30)->by($request->ip());
+        });
+
+        RateLimiter::for('visits', function (Request $request): Limit {
+            return Limit::perMinute(60)->by($request->ip());
         });
     }
 }

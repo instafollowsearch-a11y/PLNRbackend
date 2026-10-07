@@ -18,6 +18,7 @@ class AccountDeletionService
 
         DB::transaction(function () use ($user): void {
             $user->planSessions()->delete();
+            $user->pageVisits()->delete();
             $user->tokens()->delete();
             $user->delete();
         });

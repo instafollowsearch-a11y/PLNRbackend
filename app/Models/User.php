@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Pro\ProAccess;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -41,6 +42,8 @@ class User extends Authenticatable
         'pro_current_period_end',
         'google_play_product_id',
         'google_play_purchase_token',
+        'apple_product_id',
+        'apple_original_transaction_id',
         'password',
     ];
 
@@ -69,12 +72,31 @@ class User extends Authenticatable
 
     public function isPro(): bool
     {
-        return app(\App\Services\Pro\ProAccess::class)->isActive($this);
+        return app(ProAccess::class)->isActive($this);
+    }
+
+    public function hasUnexpiredStoreSubscription(): bool
+    {
+        $hasStore = filled($this->google_play_purchase_token) || filled($this->apple_original_transaction_id);
+        if (! $hasStore) {
+            return false;
+        }
+
+        if ($this->pro_current_period_end === null) {
+            return true;
+        }
+
+        return $this->pro_current_period_end->isFuture();
     }
 
     public function planSessions(): HasMany
     {
         return $this->hasMany(PlanSession::class);
+    }
+
+    public function pageVisits(): HasMany
+    {
+        return $this->hasMany(PageVisit::class);
     }
 
     public function planMemberships(): HasMany

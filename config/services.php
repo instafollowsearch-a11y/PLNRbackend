@@ -60,6 +60,14 @@ return [
         'service_account_json' => env('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON'),
     ],
 
+    'apple' => [
+        'issuer_id' => env('APPLE_IAP_ISSUER_ID'),
+        'key_id' => env('APPLE_IAP_KEY_ID'),
+        'private_key' => env('APPLE_IAP_PRIVATE_KEY'),
+        'bundle_id' => env('APPLE_IAP_BUNDLE_ID', 'com.myplnr.app'),
+        'product_id' => env('APPLE_IAP_PRODUCT_ID', 'plnr_pro_monthly'),
+    ],
+
     'pro' => [
         'monthly_price_cents' => (int) env('PRO_MONTHLY_PRICE_CENTS', 999),
         'currency' => env('PRO_CURRENCY', 'usd'),

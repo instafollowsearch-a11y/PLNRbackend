@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Api\V1\Admin\StatsController as AdminStatsController;
 use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\V1\Admin\VisitController as AdminVisitController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BillingConfigController;
 use App\Http\Controllers\Api\V1\BillingController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Api\V1\PlanSessionController;
 use App\Http\Controllers\Api\V1\PlanShareController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\StripeWebhookController;
+use App\Http\Controllers\Api\V1\VisitController;
 use App\Http\Controllers\Api\V1\WeekendRecommendationController;
 use Illuminate\Support\Facades\Route;
 
@@ -75,6 +77,8 @@ Route::prefix('v1')->group(function (): void {
             ->middleware('throttle:booking');
         Route::post('/billing/play/subscription', [BillingController::class, 'play'])
             ->middleware('throttle:booking');
+        Route::post('/billing/apple/subscription', [BillingController::class, 'apple'])
+            ->middleware('throttle:booking');
 
         Route::middleware('pro')->group(function (): void {
             Route::get('/weekend-recommendations', [WeekendRecommendationController::class, 'index']);
@@ -100,6 +104,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::middleware('admin')->prefix('admin')->group(function (): void {
             Route::get('/stats', [AdminStatsController::class, 'show']);
+            Route::get('/visits', [AdminVisitController::class, 'index']);
             Route::get('/users', [AdminUserController::class, 'index']);
             Route::patch('/users/{user}', [AdminUserController::class, 'update']);
             Route::get('/settings', [AdminSettingsController::class, 'show']);
@@ -109,6 +114,8 @@ Route::prefix('v1')->group(function (): void {
                 ->where('planType', 'date_night|night_out|vacation|road_trip');
         });
     });
+
+    Route::middleware(['auth.optional', 'throttle:visits'])->post('/visits', [VisitController::class, 'store']);
 
     Route::middleware('auth.optional')->get('/plan-limits', [PlanLimitController::class, 'show']);
 

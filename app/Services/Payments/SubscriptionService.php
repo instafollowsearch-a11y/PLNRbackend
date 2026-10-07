@@ -149,6 +149,14 @@ class SubscriptionService
             $periodEnd = now()->setTimestamp((int) $subscription->current_period_end);
         }
 
+        if ($proStatus === User::PRO_STATUS_CANCELED && $user->hasUnexpiredStoreSubscription()) {
+            $user->forceFill([
+                'stripe_subscription_id' => (string) ($subscription->id ?? $user->stripe_subscription_id),
+            ])->save();
+
+            return;
+        }
+
         $user->forceFill([
             'stripe_subscription_id' => (string) ($subscription->id ?? $user->stripe_subscription_id),
             'pro_status' => $proStatus,
@@ -171,6 +179,14 @@ class SubscriptionService
         }
 
         if ($user === null) {
+            return;
+        }
+
+        if ($user->hasUnexpiredStoreSubscription()) {
+            $user->forceFill([
+                'stripe_subscription_id' => (string) ($subscription->id ?? $user->stripe_subscription_id),
+            ])->save();
+
             return;
         }
 
@@ -221,6 +237,7 @@ class SubscriptionService
                 if ($origin === '*') {
                     $raw[] = (string) request()->headers->get('Origin', '');
                     $raw[] = (string) request()->headers->get('Referer', '');
+
                     continue;
                 }
 
