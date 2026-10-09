@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\ChangePasswordRequest;
 use App\Http\Requests\Api\V1\DeleteAccountRequest;
 use App\Http\Requests\Api\V1\ForgotPasswordRequest;
+use App\Http\Requests\Api\V1\GoogleSignInRequest;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Requests\Api\V1\RegisterRequest;
 use App\Http\Requests\Api\V1\ResetPasswordRequest;
@@ -14,11 +15,14 @@ use App\Http\Resources\UserResource;
 use App\Models\PlanShare;
 use App\Models\User;
 use App\Services\Accounts\AccountDeletionService;
+use App\Services\Auth\GoogleSignIn;
 use App\Services\Plans\PlanShareService;
+use App\Services\Weekend\DeliverWeekendPicks;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -29,6 +33,8 @@ class AuthController extends Controller
     public function __construct(
         private readonly PlanShareService $planShares,
         private readonly AccountDeletionService $accountDeletion,
+        private readonly DeliverWeekendPicks $weekendPicks,
+        private readonly GoogleSignIn $googleSignIn,
     ) {}
 
     public function register(RegisterRequest $request): JsonResponse
@@ -80,6 +86,29 @@ class AuthController extends Controller
             ],
             'message' => 'Login successful.',
         ]);
+    }
+
+    public function google(GoogleSignInRequest $request): JsonResponse
+    {
+        $result = $this->googleSignIn->signIn($request->string('id_token')->toString());
+
+        if ($result === null) {
+            return response()->json([
+                'message' => 'Google sign-in could not be verified.',
+            ], 401);
+        }
+
+        [$user, $created] = $result;
+        $this->acceptMatchingInvite($request->validated('invite_token'), $user);
+        $token = $user->createToken('mobile')->plainTextToken;
+
+        return response()->json([
+            'data' => [
+                'user' => new UserResource($user->fresh()),
+                'token' => $token,
+            ],
+            'message' => $created ? 'Registration successful.' : 'Login successful.',
+        ], $created ? 201 : 200);
     }
 
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
@@ -145,6 +174,8 @@ class AuthController extends Controller
     public function update(UpdateUserProfileRequest $request): JsonResponse
     {
         $user = $request->user();
+        $previousCity = (string) $user->city;
+        $previousInterests = is_array($user->interests) ? $user->interests : [];
         $payload = [];
 
         if ($request->exists('name')) {
@@ -160,19 +191,63 @@ class AuthController extends Controller
         }
 
         if ($request->exists('interests')) {
-            $payload['interests'] = $request->input('interests', []);
+            $payload['interests'] = array_values(array_filter(array_map(
+                static fn (mixed $interest): string => trim((string) $interest),
+                $request->input('interests', []),
+            )));
         }
 
         if ($payload !== []) {
             $user->update($payload);
         }
 
+        $user = $user->fresh();
+        $weekendDelivery = 'skipped';
+
+        if ($this->weekendPreferencesChanged($previousCity, $previousInterests, $user)) {
+            try {
+                $weekendDelivery = $this->weekendPicks->deliver($user);
+            } catch (\Throwable $exception) {
+                $weekendDelivery = 'failed';
+                Log::warning('weekend.preference_delivery_failed', [
+                    'user_id' => $user->id,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
+
         return response()->json([
             'data' => [
-                'user' => new UserResource($user->fresh()),
+                'user' => new UserResource($user),
+                'weekend_delivery' => $weekendDelivery,
             ],
             'message' => 'Profile updated successfully.',
         ]);
+    }
+
+    /**
+     * @param  list<string>  $previousInterests
+     */
+    private function weekendPreferencesChanged(string $previousCity, array $previousInterests, User $user): bool
+    {
+        $nextInterests = is_array($user->interests) ? $user->interests : [];
+
+        return mb_strtolower(trim($previousCity)) !== mb_strtolower(trim((string) $user->city))
+            || $this->interestKey($previousInterests) !== $this->interestKey($nextInterests);
+    }
+
+    /**
+     * @param  list<mixed>  $interests
+     */
+    private function interestKey(array $interests): string
+    {
+        $items = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $interest): string => mb_strtolower(trim((string) $interest)),
+            $interests,
+        ))));
+        sort($items);
+
+        return implode('|', $items);
     }
 
     public function changePassword(ChangePasswordRequest $request): JsonResponse
@@ -205,5 +280,24 @@ class AuthController extends Controller
             'data' => null,
             'message' => 'Account deleted.',
         ]);
+    }
+
+    private function acceptMatchingInvite(mixed $inviteToken, User $user): void
+    {
+        if (! is_string($inviteToken) || $inviteToken === '') {
+            return;
+        }
+
+        $share = PlanShare::query()->where('token', $inviteToken)->first();
+
+        if ($share === null || ! $share->isPending()) {
+            return;
+        }
+
+        if (strtolower($user->email) !== strtolower($share->invitee_email)) {
+            return;
+        }
+
+        $this->planShares->accept($share, $user);
     }
 }

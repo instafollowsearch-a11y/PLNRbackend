@@ -32,7 +32,7 @@ class BookingReminderMail extends Mailable
         $theme = PlanTypeMailTheme::for(is_string($slug) ? $slug : null);
 
         return new Content(
-            view: 'mail.booking-reminder',
+            markdown: 'mail.booking-reminder',
             with: [
                 'booking' => $this->booking,
                 'theme' => $theme,

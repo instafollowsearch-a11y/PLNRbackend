@@ -10,6 +10,7 @@ use App\Services\Events\EventIngestionService;
 use App\Services\Events\EventSourceResolver;
 use App\Services\Events\FindLocalStopLinks;
 use App\Services\Events\NormalizedEvent;
+use App\Support\Geo\LocationLabel;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -583,7 +584,7 @@ PROMPT,
 
     private function primaryCityName(string $city): string
     {
-        $primary = trim(Str::before($city, ','));
+        $primary = LocationLabel::cityName($city);
 
         return $primary !== '' ? $primary : trim($city);
     }

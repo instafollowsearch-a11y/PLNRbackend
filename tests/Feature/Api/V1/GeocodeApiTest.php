@@ -67,6 +67,30 @@ class GeocodeApiTest extends TestCase
         });
     }
 
+    public function test_search_keeps_a_street_address(): void
+    {
+        Http::fake([
+            'https://nominatim.openstreetmap.org/search*' => Http::response([
+                [
+                    'lat' => '33.7467075',
+                    'lon' => '-84.4151622',
+                    'display_name' => '840, Westview Drive Southwest, Atlanta, Georgia, United States',
+                    'address' => [
+                        'house_number' => '840',
+                        'road' => 'Westview Drive Southwest',
+                        'city' => 'Atlanta',
+                        'state' => 'Georgia',
+                        'country' => 'United States',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->getJson('/api/v1/geocode/search?q=840+westview+dr+atlanta+Ga')
+            ->assertOk()
+            ->assertJsonPath('data.0.label', '840 Westview Drive Southwest, Atlanta, Georgia');
+    }
+
     public function test_search_skips_a_short_query(): void
     {
         Http::fake();

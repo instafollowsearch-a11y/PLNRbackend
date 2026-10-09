@@ -9,6 +9,7 @@ use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -25,13 +26,13 @@ class ItineraryMail extends Mailable
     public function envelope(): Envelope
     {
         $title = MailSubject::stamp($this->itinerary->content['title'] ?? 'Your PLNR Itinerary');
-        $settings = app(\App\Services\Settings\AppSettings::class);
+        $settings = app(AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
 
         if ($fromAddress) {
             return new Envelope(
                 subject: $title,
-                from: new \Illuminate\Mail\Mailables\Address(
+                from: new Address(
                     $fromAddress,
                     $settings->mailFromName() ?? (string) config('mail.from.name'),
                 ),
@@ -54,7 +55,7 @@ class ItineraryMail extends Mailable
             : null;
 
         return new Content(
-            view: 'mail.view-on-plnr',
+            markdown: 'mail.view-on-plnr',
             with: [
                 'planSession' => $this->planSession,
                 'itinerary' => $this->itinerary,

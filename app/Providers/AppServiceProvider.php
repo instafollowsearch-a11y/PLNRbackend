@@ -6,6 +6,8 @@ use App\Mail\ResetPasswordMail;
 use App\Models\User;
 use App\Services\AI\AiChatClient;
 use App\Services\AI\AnthropicClient;
+use App\Services\Auth\GoogleIdTokenVerifier;
+use App\Services\Auth\VerifiesGoogleIdToken;
 use App\Services\Billing\AppleSubscriptionVerifier;
 use App\Services\Billing\AppStoreSubscriptionVerifier;
 use App\Services\Billing\GooglePlaySubscriptionVerifier;
@@ -17,12 +19,15 @@ use App\Services\Payments\PaymentGateway;
 use App\Services\Payments\PaymentGatewayResolver;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
 use App\Services\Settings\AppSettings;
+use App\Services\Sms\SendsPlanInviteSms;
+use App\Services\Sms\TwilioPlanInviteSms;
 use App\Support\Auth\PasswordResetUrl;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -33,6 +38,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(AiChatClient::class, AnthropicClient::class);
+        $this->app->singleton(SendsPlanInviteSms::class, TwilioPlanInviteSms::class);
+        $this->app->singleton(VerifiesGoogleIdToken::class, GoogleIdTokenVerifier::class);
         $this->app->singleton(PlaySubscriptionVerifier::class, GooglePlaySubscriptionVerifier::class);
         $this->app->singleton(AppleSubscriptionVerifier::class, AppStoreSubscriptionVerifier::class);
 
@@ -58,6 +65,18 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
+
+        View::addNamespace('mail', [
+            resource_path('views/vendor/mail/html'),
+            base_path('vendor/laravel/framework/src/Illuminate/Mail/resources/views/html'),
+        ]);
+
+        View::composer('mail.*', function ($view): void {
+            $data = $view->getData();
+            if (isset($data['message']) && is_object($data['message']) && method_exists($data['message'], 'embed')) {
+                View::share('plnrMailMessage', $data['message']);
+            }
+        });
 
         ResetPassword::createUrlUsing(fn (User $user, string $token): string => PasswordResetUrl::for($user, $token));
 

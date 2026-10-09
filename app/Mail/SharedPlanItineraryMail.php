@@ -10,6 +10,7 @@ use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -26,7 +27,7 @@ class SharedPlanItineraryMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $settings = app(\App\Services\Settings\AppSettings::class);
+        $settings = app(AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
         $title = $this->itinerary->content['title'] ?? 'Shared PLNR plan';
         $subject = MailSubject::stamp(($this->sharedBy?->name ?? 'A friend').' shared: '.$title);
@@ -34,7 +35,7 @@ class SharedPlanItineraryMail extends Mailable
         if ($fromAddress) {
             return new Envelope(
                 subject: $subject,
-                from: new \Illuminate\Mail\Mailables\Address(
+                from: new Address(
                     $fromAddress,
                     $settings->mailFromName() ?? (string) config('mail.from.name'),
                 ),
@@ -54,7 +55,7 @@ class SharedPlanItineraryMail extends Mailable
             : null;
 
         return new Content(
-            view: 'mail.shared-plan-itinerary',
+            markdown: 'mail.shared-plan-itinerary',
             with: [
                 'theme' => PlanTypeMailTheme::for($slug),
                 'planSession' => $this->planSession,

@@ -13,7 +13,9 @@ use App\Services\Events\FindLocalCredit;
 use App\Services\Events\FindLocalStopLinks;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
 use App\Services\Settings\AppSettings;
+use App\Services\Sms\SendsPlanInviteSms;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
@@ -22,9 +24,10 @@ class PlanShareService
     public function __construct(
         private readonly AppSettings $settings,
         private readonly ScheduleItineraryStopReminders $scheduleStopReminders,
+        private readonly SendsPlanInviteSms $inviteSms,
     ) {}
 
-    public function createShare(PlanSession $planSession, User $inviter, string $inviteeEmail): PlanShare
+    public function createShare(PlanSession $planSession, User $inviter, string $inviteeEmail, ?string $inviteePhone = null): CreatedPlanShare
     {
         if (! $planSession->isOwnedBy($inviter)) {
             throw ValidationException::withMessages([
@@ -45,15 +48,20 @@ class PlanShareService
             'plan_session_id' => $planSession->id,
             'inviter_user_id' => $inviter->id,
             'invitee_email' => $inviteeEmail,
+            'invitee_phone' => $inviteePhone,
             'status' => PlanShare::STATUS_PENDING,
             'expires_at' => now()->addDays(14),
         ]);
 
         $share->load(['planSession.planType', 'inviter']);
 
-        Mail::to($inviteeEmail)->send(new PlanShareInviteMail($share, $this->inviteUrls($share)));
+        $urls = $this->inviteUrls($share);
 
-        return $share;
+        Mail::to($inviteeEmail)->send(new PlanShareInviteMail($share, $urls));
+
+        [$smsSent, $smsNotice] = $this->sendInviteSms($share, $inviter, $urls);
+
+        return new CreatedPlanShare($share, $smsSent, $smsNotice);
     }
 
     /**
@@ -156,6 +164,41 @@ class PlanShareService
         $city = $share->planSession?->city;
 
         return app(FindLocalStopLinks::class)->attach($content, is_string($city) ? $city : null);
+    }
+
+    /**
+     * @param  array{web: string|null, app: string}  $urls
+     * @return array{0: bool, 1: string|null}
+     */
+    private function sendInviteSms(PlanShare $share, User $inviter, array $urls): array
+    {
+        $phone = $share->invitee_phone;
+
+        if (! is_string($phone) || $phone === '') {
+            return [false, null];
+        }
+
+        if (! $this->inviteSms->configured()) {
+            return [false, 'Invite email sent. Text messaging is not set up.'];
+        }
+
+        $name = trim((string) $inviter->name);
+        $who = $name !== '' ? $name : 'Someone';
+        $url = $urls['web'] ?? $urls['app'];
+        $body = "{$who} invited you to a plan on PLNR. View it: {$url} Reply STOP to opt out.";
+
+        try {
+            $this->inviteSms->send($phone, $body);
+
+            return [true, null];
+        } catch (\Throwable $exception) {
+            Log::warning('Plan invite SMS failed.', [
+                'share_id' => $share->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return [false, 'Invite email sent. The text could not be sent.'];
+        }
     }
 
     /**

@@ -3,11 +3,12 @@
 namespace App\Http\Resources;
 
 use App\Models\PlanMember;
+use App\Models\PlanSession;
 use App\Services\Events\FindLocalCredit;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\PlanSession */
+/** @mixin PlanSession */
 class PlanSessionResource extends JsonResource
 {
     /**
@@ -32,6 +33,8 @@ class PlanSessionResource extends JsonResource
         return [
             'uuid' => $this->uuid,
             'status' => $this->status,
+            'generation_status' => $this->generation_status,
+            'generation_error' => $this->generation_error,
             'city' => $this->city,
             'answers' => $this->answers,
             'refinement_messages' => $this->refinement_messages,

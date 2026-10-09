@@ -32,7 +32,7 @@ class ItineraryStopReminderMail extends Mailable
         $theme = PlanTypeMailTheme::for($slug);
 
         return new Content(
-            view: 'mail.itinerary-stop-reminder',
+            markdown: 'mail.itinerary-stop-reminder',
             with: [
                 'reminder' => $this->reminder,
                 'theme' => $theme,

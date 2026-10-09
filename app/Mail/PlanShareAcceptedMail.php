@@ -4,10 +4,12 @@ namespace App\Mail;
 
 use App\Models\PlanShare;
 use App\Models\User;
+use App\Services\Settings\AppSettings;
 use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -23,14 +25,14 @@ class PlanShareAcceptedMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $settings = app(\App\Services\Settings\AppSettings::class);
+        $settings = app(AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
         $subject = MailSubject::stamp($this->acceptedBy->name.' accepted your plan invite');
 
         if ($fromAddress) {
             return new Envelope(
                 subject: $subject,
-                from: new \Illuminate\Mail\Mailables\Address(
+                from: new Address(
                     $fromAddress,
                     $settings->mailFromName() ?? (string) config('mail.from.name'),
                 ),
@@ -45,7 +47,7 @@ class PlanShareAcceptedMail extends Mailable
         $slug = $this->share->planSession?->planType?->slug;
 
         return new Content(
-            view: 'mail.plan-share-accepted',
+            markdown: 'mail.plan-share-accepted',
             with: [
                 'theme' => PlanTypeMailTheme::for($slug ?? 'share'),
                 'share' => $this->share,

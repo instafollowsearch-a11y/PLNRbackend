@@ -49,6 +49,7 @@ Route::prefix('v1')->group(function (): void {
         Route::middleware('throttle:auth')->group(function (): void {
             Route::post('/register', [AuthController::class, 'register']);
             Route::post('/login', [AuthController::class, 'login']);
+            Route::post('/google', [AuthController::class, 'google']);
             Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
             Route::post('/reset-password', [AuthController::class, 'resetPassword']);
         });
@@ -88,6 +89,8 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('throttle:ai');
             Route::get('/weekend-recommendations/{weekendRecommendation}', [WeekendRecommendationController::class, 'show']);
             Route::post('/weekend-recommendations/{weekendRecommendation}/send-email', [WeekendRecommendationController::class, 'sendEmail'])
+                ->middleware('throttle:email');
+            Route::post('/weekend-recommendations/{weekendRecommendation}/invite', [WeekendRecommendationController::class, 'invite'])
                 ->middleware('throttle:email');
         });
 

@@ -7,7 +7,6 @@ use App\Models\Booking;
 use App\Models\PlanSession;
 use App\Models\PlanType;
 use App\Models\User;
-use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -35,15 +34,18 @@ class BookingReminderMailTest extends TestCase
         ]);
 
         $html = (new BookingReminderMail($booking))->render();
-        $theme = PlanTypeMailTheme::for('road_trip');
 
         $this->assertStringContainsString('PLNR', $html);
+        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('width="120"', $html);
         $this->assertStringContainsString('Denver weekend drive', $html);
         $this->assertStringContainsString('Alex', $html);
-        $this->assertStringContainsString($theme['accent'], $html);
-        $this->assertStringContainsString('data-motif="road"', $html);
-        $this->assertStringContainsString('margin-top:-28px', $html);
-        $this->assertStringContainsString('height="56"', $html);
+        $this->assertStringContainsString('This is a reminder for your upcoming plan.', $html);
+        $this->assertStringContainsString('#F7F4F0', $html);
+        $this->assertStringContainsString('#D4622A', $html);
+        $this->assertStringContainsString('Road Trip', $html);
+        $this->assertStringNotContainsString('data-motif', $html);
+        $this->assertStringNotContainsString('margin-top:-28px', $html);
         $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html);
         $this->assertStringNotContainsString('Laravel Logo', $html);
     }

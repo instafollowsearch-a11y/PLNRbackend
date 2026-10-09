@@ -21,6 +21,7 @@ class PlanShare extends Model
         'plan_session_id',
         'inviter_user_id',
         'invitee_email',
+        'invitee_phone',
         'status',
         'accepted_user_id',
         'accepted_at',

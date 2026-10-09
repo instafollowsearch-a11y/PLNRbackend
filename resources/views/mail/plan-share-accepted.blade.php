@@ -1,23 +1,18 @@
-@component('mail.layouts.plnr', [
-    'message' => $message ?? null,
-    'theme' => $theme,
-    'title' => 'Plan invite accepted',
-    'heroEyebrow' => 'Shared plan',
-    'heroTitle' => $acceptedBy->name.' accepted your plan invite',
-])
-    <p style="margin:0 0 16px 0;color:{{ $theme['muted'] }};font-size:15px;">
-        {{ $acceptedBy->name }} ({{ $acceptedBy->email }}) can now view this plan with you.
-        They’ll also get plan reminder emails when stops are coming up.
-    </p>
+@component('mail::message')
+{{ $theme['label'] }}
 
-    @if (!empty($share->planSession?->city) || !empty($share->planSession?->planType?->label))
-        <p style="margin:0;font-size:14px;color:{{ $theme['text'] }};">
-            @if (!empty($share->planSession?->planType?->label))
-                <strong>{{ $share->planSession->planType->label }}</strong>
-            @endif
-            @if (!empty($share->planSession?->city))
-                in {{ $share->planSession->city }}
-            @endif
-        </p>
-    @endif
+# {{ $acceptedBy->name }} accepted your plan invite
+
+{{ $acceptedBy->name }} ({{ $acceptedBy->email }}) can now view this plan with you. They’ll also get plan reminder emails when stops are coming up.
+
+@if (!empty($share->planSession?->planType?->label) || !empty($share->planSession?->city))
+@if (!empty($share->planSession?->planType?->label))
+**{{ $share->planSession->planType->label }}**
+@endif
+@if (!empty($share->planSession?->city))
+in {{ $share->planSession->city }}
+@endif
+@endif
+
+Enjoy your plans.
 @endcomponent

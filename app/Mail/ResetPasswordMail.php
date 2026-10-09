@@ -47,7 +47,7 @@ class ResetPasswordMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'mail.reset-password',
+            markdown: 'mail.reset-password',
             with: [
                 'theme' => PlanTypeMailTheme::brand(),
                 'email' => $this->email,

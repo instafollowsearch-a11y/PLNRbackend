@@ -133,6 +133,19 @@ class NominatimClient
         $city = $address['city'] ?? $address['town'] ?? $address['village'] ?? $address['hamlet'] ?? null;
         $state = $address['state'] ?? null;
         $country = $address['country'] ?? null;
+        $street = $this->street($address);
+
+        if ($street !== '') {
+            $region = is_string($state) && $state !== '' ? $state : (is_string($country) && $country !== '' ? $country : null);
+            $parts = array_values(array_filter(
+                [$street, is_string($city) && $city !== '' ? $city : null, $region],
+                fn (?string $part): bool => $part !== null && $part !== '',
+            ));
+
+            if ($parts !== []) {
+                return implode(', ', $parts);
+            }
+        }
 
         if (is_string($city) && is_string($state) && $city !== '' && $state !== '') {
             return $city.', '.$state;
@@ -147,5 +160,20 @@ class NominatimClient
         }
 
         return implode(',', array_slice(explode(',', $item['display_name']), 0, 3));
+    }
+
+    /**
+     * @param  array<mixed>  $address
+     */
+    private function street(array $address): string
+    {
+        $number = is_string($address['house_number'] ?? null) ? trim($address['house_number']) : '';
+        $road = is_string($address['road'] ?? null) ? trim($address['road']) : '';
+
+        if ($number !== '' && $road !== '') {
+            return $number.' '.$road;
+        }
+
+        return $road;
     }
 }

@@ -1,8 +1,22 @@
 @props(['url'])
 <tr>
 <td class="header">
-<a href="{{ $url }}" style="display: inline-block; text-decoration: none;">
-<span style="font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 700; letter-spacing: 0.08em; color: #1A1A1A;">PLNR</span>
+<a href="{{ $url }}" style="display: inline-block;">
+@php
+    $plnrLogoFile = public_path('images/plnr-logo-email.png');
+    if (! is_file($plnrLogoFile)) {
+        $plnrLogoFile = public_path('images/plnr-logo-black-lettering.png');
+    }
+    $plnrLogoMessage = $plnrMailMessage ?? ($message ?? null);
+    $plnrLogo = (isset($plnrLogoMessage) && is_object($plnrLogoMessage) && method_exists($plnrLogoMessage, 'embed') && is_file($plnrLogoFile))
+        ? $plnrLogoMessage->embed($plnrLogoFile)
+        : null;
+@endphp
+@if ($plnrLogo)
+<img src="{{ $plnrLogo }}" class="logo" alt="PLNR" width="120" height="44">
+@else
+PLNR
+@endif
 </a>
 </td>
 </tr>

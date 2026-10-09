@@ -7,6 +7,7 @@ use App\Http\Requests\Api\V1\StorePlanShareRequest;
 use App\Http\Resources\PlanSessionResource;
 use App\Models\PlanSession;
 use App\Models\PlanShare;
+use App\Models\User;
 use App\Services\Plans\PlanShareService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,25 +20,35 @@ class PlanShareController extends Controller
 
     public function store(StorePlanShareRequest $request, PlanSession $planSession): JsonResponse
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
-        $share = $this->shares->createShare(
+        $phone = $request->validated('phone');
+        $created = $this->shares->createShare(
             $planSession,
             $user,
             (string) $request->validated('email'),
+            is_string($phone) ? $phone : null,
         );
+        $share = $created->share;
+        $message = 'Plan invite sent.';
+
+        if (is_string($phone) && $phone !== '' && ! $created->smsSent) {
+            $message = $created->smsNotice ?? 'Invite email sent. The text could not be sent.';
+        }
 
         return response()->json([
             'data' => [
                 'share' => [
                     'token' => $share->token,
                     'invitee_email' => $share->invitee_email,
+                    'invitee_phone' => $share->invitee_phone,
                     'status' => $share->status,
                     'expires_at' => $share->expires_at?->toIso8601String(),
+                    'sms_sent' => $created->smsSent,
                 ],
             ],
-            'message' => 'Plan invite sent.',
+            'message' => $message,
         ], 201);
     }
 

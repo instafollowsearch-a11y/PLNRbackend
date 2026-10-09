@@ -3,10 +3,12 @@
 namespace App\Mail;
 
 use App\Models\PlanShare;
+use App\Services\Settings\AppSettings;
 use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -26,14 +28,14 @@ class PlanShareInviteMail extends Mailable
     public function envelope(): Envelope
     {
         $inviter = $this->share->inviter?->name ?? 'Someone';
-        $settings = app(\App\Services\Settings\AppSettings::class);
+        $settings = app(AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
         $subject = MailSubject::stamp($inviter.' shared a PLNR plan with you');
 
         if ($fromAddress) {
             return new Envelope(
                 subject: $subject,
-                from: new \Illuminate\Mail\Mailables\Address(
+                from: new Address(
                     $fromAddress,
                     $settings->mailFromName() ?? (string) config('mail.from.name'),
                 ),
@@ -47,10 +49,10 @@ class PlanShareInviteMail extends Mailable
     {
         $slug = $this->share->planSession?->planType?->slug;
         $theme = PlanTypeMailTheme::for($slug ?? 'share');
-        $settings = app(\App\Services\Settings\AppSettings::class);
+        $settings = app(AppSettings::class);
 
         return new Content(
-            view: 'mail.plan-share-invite',
+            markdown: 'mail.plan-share-invite',
             with: [
                 'theme' => $theme,
                 'share' => $this->share,

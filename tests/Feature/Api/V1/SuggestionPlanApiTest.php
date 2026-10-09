@@ -66,6 +66,30 @@ class SuggestionPlanApiTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_itinerary_keeps_building_after_the_response_is_sent(): void
+    {
+        config(['app.defer_http_work' => true]);
+        [$session, $suggestion] = $this->guestSuggestion([
+            'title' => 'Jazz on 6th Street Crawl',
+            'summary' => 'Three stops downtown.',
+            'stops' => [
+                ['time' => '20:00', 'name' => 'Elephant Room', 'activity' => 'Live jazz', 'notes' => 'Arrive early.'],
+            ],
+        ]);
+
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/select", [
+            'suggestion_id' => $suggestion->id,
+        ])->assertOk();
+
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/itinerary")
+            ->assertStatus(202)
+            ->assertJsonPath('data.status', 'generating');
+
+        $this->assertSame(PlanSession::STATUS_ITINERARY, $session->fresh()->status);
+        $this->assertNull($session->fresh()->generation_status);
+        $this->assertSame('Jazz on 6th Street Crawl', $session->fresh()->itinerary?->content['title']);
+    }
+
     public function test_a_failed_draft_leaves_the_other_ideas_in_place(): void
     {
         Http::fake([

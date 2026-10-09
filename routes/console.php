@@ -10,5 +10,6 @@ Artisan::command('inspire', function () {
 
 Schedule::command('bookings:send-reminders')->daily();
 Schedule::command('itineraries:send-stop-reminders')->hourly();
+Schedule::command('weekends:send-pick-reminders')->hourly();
 Schedule::command('events:sync')->daily();
 Schedule::command('weekends:send')->weeklyOn(5, '9:00');

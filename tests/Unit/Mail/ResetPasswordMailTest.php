@@ -12,6 +12,7 @@ use Tests\TestCase;
 class ResetPasswordMailTest extends TestCase
 {
     use RefreshDatabase;
+
     public function test_uses_the_plnr_brand_and_a_unique_subject(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-09-30 17:54:07', 'UTC'));
@@ -29,9 +30,13 @@ class ResetPasswordMailTest extends TestCase
         $this->assertStringContainsString('Choose a new password', $html);
         $this->assertStringContainsString('dterefe0@gmail.com', $html);
         $this->assertStringContainsString($theme['accent'], $html);
-        $this->assertStringContainsString('data-motif="moon"', $html);
+        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('width="120"', $html);
+        $this->assertStringContainsString('button-account', $html);
+        $this->assertStringContainsString('#F7F4F0', $html);
+        $this->assertStringNotContainsString('data-motif', $html);
         $this->assertStringContainsString('If you did not ask for this, you can ignore this email.', $html);
-        $this->assertStringNotContainsString('Enjoy your plan.', $html);
+        $this->assertStringNotContainsString('Enjoy your plans.', $html);
         $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html);
 
         Carbon::setTestNow();

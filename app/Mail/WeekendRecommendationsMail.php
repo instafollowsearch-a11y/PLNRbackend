@@ -3,10 +3,12 @@
 namespace App\Mail;
 
 use App\Models\WeekendRecommendation;
+use App\Services\Settings\AppSettings;
 use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -21,14 +23,14 @@ class WeekendRecommendationsMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $settings = app(\App\Services\Settings\AppSettings::class);
+        $settings = app(AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
         $subject = MailSubject::stamp('Your weekend picks in '.$this->recommendation->city);
 
         if ($fromAddress) {
             return new Envelope(
                 subject: $subject,
-                from: new \Illuminate\Mail\Mailables\Address(
+                from: new Address(
                     $fromAddress,
                     $settings->mailFromName() ?? (string) config('mail.from.name'),
                 ),
@@ -73,7 +75,7 @@ class WeekendRecommendationsMail extends Mailable
         $theme = PlanTypeMailTheme::for('weekend');
 
         return new Content(
-            view: 'mail.weekend-recommendations',
+            markdown: 'mail.weekend-recommendations',
             with: [
                 'theme' => $theme,
                 'recommendation' => $this->recommendation,

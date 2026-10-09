@@ -27,7 +27,7 @@ class BookingOpsNotificationMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'mail.booking-ops-notification',
+            markdown: 'mail.booking-ops-notification',
             with: [
                 'theme' => PlanTypeMailTheme::brand(),
                 'booking' => $this->booking,

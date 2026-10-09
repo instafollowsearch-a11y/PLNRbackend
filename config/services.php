@@ -111,6 +111,14 @@ return [
     'google' => [
         'places_key' => env('GOOGLE_PLACES_API_KEY'),
         'gas_price_per_gallon' => (float) env('GAS_PRICE_PER_GALLON', 3.5),
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+    ],
+
+    'twilio' => [
+        'account_sid' => env('TWILIO_ACCOUNT_SID'),
+        'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        'from' => env('TWILIO_FROM_NUMBER'),
+        'messaging_service_sid' => env('TWILIO_MESSAGING_SERVICE_SID'),
     ],
 
 ];

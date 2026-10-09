@@ -16,15 +16,16 @@ use App\Models\PlanType;
 use App\Models\Suggestion;
 use App\Services\AI\ItineraryService;
 use App\Services\AI\SuggestionService;
+use App\Services\Notifications\ExpoPushService;
 use App\Services\Plans\PlanQuotaService;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
+use App\Support\Http\RunAfterResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
-use InvalidArgumentException;
-use RuntimeException;
+use Throwable;
 
 class PlanSessionController extends Controller
 {
@@ -130,25 +131,54 @@ class PlanSessionController extends Controller
     {
         $this->authorize('update', $planSession);
 
-        try {
-            $suggestions = $suggestionService->generate($planSession);
-        } catch (RuntimeException|InvalidArgumentException $exception) {
-            Log::warning('plan_session.suggestions_failed', [
-                'plan_session_uuid' => $planSession->uuid,
-                'error' => $exception->getMessage(),
-            ]);
+        if ($busy = $this->alreadyGenerating($planSession, PlanSession::GENERATION_SUGGESTIONS)) {
+            return $busy;
+        }
 
+        $planSession->update([
+            'generation_status' => PlanSession::GENERATION_SUGGESTIONS,
+            'generation_error' => null,
+        ]);
+
+        try {
+            $accepted = RunAfterResponse::defer(function () use ($planSession, $suggestionService): void {
+                try {
+                    $suggestionService->generate($planSession->fresh() ?? $planSession);
+                    $planSession->update([
+                        'generation_status' => null,
+                        'generation_error' => null,
+                    ]);
+                    $this->notifyReady($planSession, 'Your ideas are ready', 'Open PLNR to pick a plan.');
+                } catch (Throwable $exception) {
+                    $this->markGenerationFailed($planSession, 'plan_session.suggestions_failed', $exception, 'Unable to generate suggestions. Please try again.');
+
+                    if (RunAfterResponse::inline()) {
+                        throw $exception;
+                    }
+                }
+            });
+        } catch (Throwable) {
             return response()->json([
                 'message' => 'Unable to generate suggestions. Please try again.',
             ], 502);
         }
 
-        $planSession->load(['planType', 'suggestions']);
+        if ($accepted instanceof JsonResponse) {
+            return $accepted;
+        }
+
+        $planSession->refresh()->load(['planType', 'suggestions']);
+
+        if ($planSession->generation_status === PlanSession::GENERATION_FAILED) {
+            return response()->json([
+                'message' => $planSession->generation_error ?: 'Unable to generate suggestions. Please try again.',
+            ], 502);
+        }
 
         return response()->json([
             'data' => [
                 'plan_session' => new PlanSessionResource($planSession),
-                'suggestions' => SuggestionResource::collection($suggestions),
+                'suggestions' => SuggestionResource::collection($planSession->suggestions),
             ],
             'message' => 'Suggestions generated.',
         ]);
@@ -167,28 +197,50 @@ class PlanSessionController extends Controller
             ], 422);
         }
 
+        if ($busy = $this->alreadyGenerating($planSession, PlanSession::GENERATION_REFINE)) {
+            return $busy;
+        }
+
         $planSession->addRefinementMessage($request->string('message')->toString());
+        $planSession->update([
+            'generation_status' => PlanSession::GENERATION_REFINE,
+            'generation_error' => null,
+        ]);
 
         try {
-            $suggestions = $suggestionService->generate($planSession->fresh() ?? $planSession);
-        } catch (RuntimeException|InvalidArgumentException $exception) {
-            $planSession->removeLastRefinementMessage();
-            Log::warning('plan_session.refine_failed', [
-                'plan_session_uuid' => $planSession->uuid,
-                'error' => $exception->getMessage(),
-            ]);
+            $accepted = RunAfterResponse::defer(function () use ($planSession, $suggestionService): void {
+                try {
+                    $suggestionService->generate($planSession->fresh() ?? $planSession);
+                    $planSession->update([
+                        'generation_status' => null,
+                        'generation_error' => null,
+                    ]);
+                    $this->notifyReady($planSession, 'Your ideas are ready', 'Open PLNR to pick a plan.');
+                } catch (Throwable $exception) {
+                    $planSession->removeLastRefinementMessage();
+                    $this->markGenerationFailed($planSession, 'plan_session.refine_failed', $exception, 'Unable to refine suggestions. Please try again.');
 
+                    if (RunAfterResponse::inline()) {
+                        throw $exception;
+                    }
+                }
+            });
+        } catch (Throwable) {
             return response()->json([
                 'message' => 'Unable to refine suggestions. Please try again.',
             ], 502);
         }
 
-        $planSession->load(['planType', 'suggestions']);
+        if ($accepted instanceof JsonResponse) {
+            return $accepted;
+        }
+
+        $planSession->refresh()->load(['planType', 'suggestions']);
 
         return response()->json([
             'data' => [
                 'plan_session' => new PlanSessionResource($planSession),
-                'suggestions' => SuggestionResource::collection($suggestions),
+                'suggestions' => SuggestionResource::collection($planSession->suggestions),
             ],
             'message' => 'Suggestions refined.',
         ]);
@@ -226,19 +278,42 @@ class PlanSessionController extends Controller
             abort(404);
         }
 
-        try {
-            $suggestion = $itineraryService->draft($planSession, $suggestion);
-        } catch (RuntimeException|InvalidArgumentException $exception) {
-            Log::warning('plan_session.draft_plan_failed', [
-                'plan_session_uuid' => $planSession->uuid,
-                'suggestion_id' => $suggestion->id,
-                'error' => $exception->getMessage(),
-            ]);
+        if ($busy = $this->alreadyGenerating($planSession, PlanSession::GENERATION_DRAFT)) {
+            return $busy;
+        }
 
+        $planSession->update([
+            'generation_status' => PlanSession::GENERATION_DRAFT,
+            'generation_error' => null,
+        ]);
+
+        try {
+            $accepted = RunAfterResponse::defer(function () use ($planSession, $suggestion, $itineraryService): void {
+                try {
+                    $itineraryService->draft($planSession->fresh() ?? $planSession, $suggestion);
+                    $planSession->update([
+                        'generation_status' => null,
+                        'generation_error' => null,
+                    ]);
+                } catch (Throwable $exception) {
+                    $this->markGenerationFailed($planSession, 'plan_session.draft_plan_failed', $exception, 'Unable to write this plan. Please try again.');
+
+                    if (RunAfterResponse::inline()) {
+                        throw $exception;
+                    }
+                }
+            });
+        } catch (Throwable) {
             return response()->json([
                 'message' => 'Unable to write this plan. Please try again.',
             ], 502);
         }
+
+        if ($accepted instanceof JsonResponse) {
+            return $accepted;
+        }
+
+        $suggestion = $suggestion->fresh() ?? $suggestion;
 
         return response()->json([
             'data' => [
@@ -260,25 +335,66 @@ class PlanSessionController extends Controller
             ], 422);
         }
 
-        try {
-            $itinerary = $itineraryService->generate($planSession, $selected);
-        } catch (RuntimeException|InvalidArgumentException $exception) {
-            Log::warning('plan_session.itinerary_failed', [
-                'plan_session_uuid' => $planSession->uuid,
-                'error' => $exception->getMessage(),
-            ]);
+        if ($planSession->itinerary()->exists() && $planSession->generation_status !== PlanSession::GENERATION_ITINERARY) {
+            $planSession->load(['planType', 'suggestions', 'itinerary']);
 
+            return response()->json([
+                'data' => [
+                    'plan_session' => new PlanSessionResource($planSession),
+                    'itinerary' => new ItineraryResource($planSession->itinerary),
+                ],
+                'message' => 'Itinerary generated.',
+            ]);
+        }
+
+        if ($busy = $this->alreadyGenerating($planSession, PlanSession::GENERATION_ITINERARY)) {
+            return $busy;
+        }
+
+        $planSession->update([
+            'generation_status' => PlanSession::GENERATION_ITINERARY,
+            'generation_error' => null,
+        ]);
+
+        try {
+            $accepted = RunAfterResponse::defer(function () use ($planSession, $selected, $itineraryService): void {
+                try {
+                    $itineraryService->generate($planSession->fresh() ?? $planSession, $selected);
+                    $planSession->update([
+                        'generation_status' => null,
+                        'generation_error' => null,
+                    ]);
+                    $this->notifyReady($planSession, 'Your plan is ready', 'The full plan is waiting in PLNR.');
+                } catch (Throwable $exception) {
+                    $this->markGenerationFailed($planSession, 'plan_session.itinerary_failed', $exception, 'Unable to generate itinerary. Please try again.');
+
+                    if (RunAfterResponse::inline()) {
+                        throw $exception;
+                    }
+                }
+            });
+        } catch (Throwable) {
             return response()->json([
                 'message' => 'Unable to generate itinerary. Please try again.',
             ], 502);
         }
 
-        $planSession->load(['planType', 'suggestions', 'itinerary']);
+        if ($accepted instanceof JsonResponse) {
+            return $accepted;
+        }
+
+        $planSession->refresh()->load(['planType', 'suggestions', 'itinerary']);
+
+        if ($planSession->generation_status === PlanSession::GENERATION_FAILED || $planSession->itinerary === null) {
+            return response()->json([
+                'message' => $planSession->generation_error ?: 'Unable to generate itinerary. Please try again.',
+            ], 502);
+        }
 
         return response()->json([
             'data' => [
                 'plan_session' => new PlanSessionResource($planSession),
-                'itinerary' => new ItineraryResource($itinerary),
+                'itinerary' => new ItineraryResource($planSession->itinerary),
             ],
             'message' => 'Itinerary generated.',
         ]);
@@ -302,7 +418,7 @@ class PlanSessionController extends Controller
 
         try {
             Mail::to($email)->send(new ItineraryMail($planSession, $itinerary));
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             Log::error('plan_session.send_email_failed', [
                 'plan_session_uuid' => $planSession->uuid,
                 'email' => $email,
@@ -342,6 +458,54 @@ class PlanSessionController extends Controller
                 'sent_at' => $itinerary->fresh()->email_sent_at?->toIso8601String(),
             ],
             'message' => 'Itinerary email sent.',
+        ]);
+    }
+
+    private function alreadyGenerating(PlanSession $planSession, string $status): ?JsonResponse
+    {
+        if ($planSession->generation_status !== $status) {
+            return null;
+        }
+
+        // A crashed request can leave the flag set. Let a new attempt start.
+        if ($planSession->updated_at !== null && $planSession->updated_at->lt(now()->subMinutes(4))) {
+            return null;
+        }
+
+        return response()->json([
+            'data' => [
+                'status' => 'generating',
+            ],
+            'message' => 'Still working.',
+        ], 202);
+    }
+
+    private function markGenerationFailed(PlanSession $planSession, string $logKey, Throwable $exception, string $message): void
+    {
+        Log::warning($logKey, [
+            'plan_session_uuid' => $planSession->uuid,
+            'error' => $exception->getMessage(),
+        ]);
+
+        $planSession->update([
+            'generation_status' => PlanSession::GENERATION_FAILED,
+            'generation_error' => $message,
+        ]);
+    }
+
+    private function notifyReady(PlanSession $planSession, string $title, string $body): void
+    {
+        $planSession->loadMissing(['user', 'planType']);
+        $user = $planSession->user;
+
+        if ($user === null) {
+            return;
+        }
+
+        app(ExpoPushService::class)->sendToUser($user, $title, $body, [
+            'screen' => 'plan',
+            'plan_type_slug' => $planSession->planType?->slug,
+            'plan_session_uuid' => $planSession->uuid,
         ]);
     }
 }

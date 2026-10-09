@@ -11,10 +11,12 @@ use App\Models\PlanSession;
 use App\Models\PlanShare;
 use App\Models\PlanType;
 use App\Models\User;
+use App\Services\Sms\SendsPlanInviteSms;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\FakesAnthropic;
+use Tests\Fakes\FakePlanInviteSms;
 use Tests\TestCase;
 
 class PlanShareApiTest extends TestCase
@@ -187,6 +189,118 @@ class PlanShareApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.plan_session.access_role', 'viewer')
             ->assertJsonPath('data.plan_session.shared_by.name', $owner->name);
+    }
+
+    public function test_email_only_share_does_not_send_sms(): void
+    {
+        Mail::fake();
+        $sms = new FakePlanInviteSms;
+        $this->app->instance(SendsPlanInviteSms::class, $sms);
+
+        $owner = User::factory()->create();
+        $session = $this->ownedCompletedSession($owner);
+
+        Sanctum::actingAs($owner);
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'friend@plnr.test',
+        ])->assertCreated()
+            ->assertJsonPath('data.share.sms_sent', false)
+            ->assertJsonPath('message', 'Plan invite sent.');
+
+        $this->assertSame([], $sms->messages);
+        Mail::assertSent(PlanShareInviteMail::class);
+    }
+
+    public function test_share_with_phone_sends_sms_and_stores_the_number(): void
+    {
+        Mail::fake();
+        config(['services.pro.web_app_url' => 'https://myplnr.app']);
+        $sms = new FakePlanInviteSms;
+        $this->app->instance(SendsPlanInviteSms::class, $sms);
+
+        $owner = User::factory()->create(['name' => 'Alex']);
+        $session = $this->ownedCompletedSession($owner);
+
+        Sanctum::actingAs($owner);
+        $response = $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'friend@plnr.test',
+            'phone' => '+1 (555) 123-4567',
+        ])->assertCreated()
+            ->assertJsonPath('data.share.invitee_phone', '+15551234567')
+            ->assertJsonPath('data.share.sms_sent', true);
+
+        $this->assertDatabaseHas('plan_shares', [
+            'invitee_email' => 'friend@plnr.test',
+            'invitee_phone' => '+15551234567',
+        ]);
+        $this->assertCount(1, $sms->messages);
+        $this->assertSame('+15551234567', $sms->messages[0]['to']);
+        $this->assertStringContainsString('Alex invited you to a plan on PLNR.', $sms->messages[0]['body']);
+        $this->assertStringContainsString('https://myplnr.app/invite/'.$response->json('data.share.token'), $sms->messages[0]['body']);
+        $this->assertStringContainsString('Reply STOP to opt out.', $sms->messages[0]['body']);
+        Mail::assertSent(PlanShareInviteMail::class);
+    }
+
+    public function test_sms_failure_keeps_the_email_invite(): void
+    {
+        Mail::fake();
+        $sms = new FakePlanInviteSms(shouldFail: true);
+        $this->app->instance(SendsPlanInviteSms::class, $sms);
+
+        $owner = User::factory()->create();
+        $session = $this->ownedCompletedSession($owner);
+
+        Sanctum::actingAs($owner);
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'friend@plnr.test',
+            'phone' => '+15551234567',
+        ])->assertCreated()
+            ->assertJsonPath('data.share.sms_sent', false)
+            ->assertJsonPath('message', 'Invite email sent. The text could not be sent.');
+
+        $this->assertDatabaseHas('plan_shares', [
+            'invitee_email' => 'friend@plnr.test',
+            'invitee_phone' => '+15551234567',
+        ]);
+        Mail::assertSent(PlanShareInviteMail::class);
+    }
+
+    public function test_phone_without_twilio_configuration_still_sends_email(): void
+    {
+        Mail::fake();
+        $sms = new FakePlanInviteSms(isConfigured: false);
+        $this->app->instance(SendsPlanInviteSms::class, $sms);
+
+        $owner = User::factory()->create();
+        $session = $this->ownedCompletedSession($owner);
+
+        Sanctum::actingAs($owner);
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'friend@plnr.test',
+            'phone' => '+15551234567',
+        ])->assertCreated()
+            ->assertJsonPath('data.share.sms_sent', false)
+            ->assertJsonPath('message', 'Invite email sent. Text messaging is not set up.');
+
+        $this->assertSame([], $sms->messages);
+        Mail::assertSent(PlanShareInviteMail::class);
+    }
+
+    public function test_invalid_phone_is_rejected(): void
+    {
+        Mail::fake();
+        $owner = User::factory()->create();
+        $session = $this->ownedCompletedSession($owner);
+
+        Sanctum::actingAs($owner);
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'friend@plnr.test',
+            'phone' => '5551234567',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['phone']);
+
+        $this->assertDatabaseCount('plan_shares', 0);
+        Mail::assertNothingSent();
     }
 
     private function ownedCompletedSession(User $owner): PlanSession

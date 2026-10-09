@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\PlanSessionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,7 @@ use Illuminate\Support\Str;
 
 class PlanSession extends Model
 {
-    /** @use HasFactory<\Database\Factories\PlanSessionFactory> */
+    /** @use HasFactory<PlanSessionFactory> */
     use HasFactory;
 
     public const STATUS_DRAFT = 'draft';
@@ -26,6 +27,16 @@ class PlanSession extends Model
 
     public const STATUS_COMPLETED = 'completed';
 
+    public const GENERATION_SUGGESTIONS = 'suggestions';
+
+    public const GENERATION_REFINE = 'refine';
+
+    public const GENERATION_DRAFT = 'draft';
+
+    public const GENERATION_ITINERARY = 'itinerary';
+
+    public const GENERATION_FAILED = 'failed';
+
     public const MAX_REFINEMENTS = 5;
 
     protected $fillable = [
@@ -34,6 +45,8 @@ class PlanSession extends Model
         'creator_ip',
         'plan_type_id',
         'status',
+        'generation_status',
+        'generation_error',
         'city',
         'recipient_phone',
         'recipient_email',

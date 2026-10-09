@@ -74,8 +74,10 @@ class ItineraryMailTest extends TestCase
         $this->assertStringNotContainsString('Harbor Jazz Club', $html);
         $this->assertStringNotContainsString('Live jazz set', $html);
         $this->assertStringContainsString($theme['accent'], $html);
-        $this->assertStringContainsString('data-motif="moon"', $html);
-        $this->assertStringContainsString('margin-top:-28px', $html);
+        $this->assertStringContainsString('#F7F4F0', $html);
+        $this->assertStringContainsString('button-night_out', $html);
+        $this->assertStringNotContainsString('data-motif', $html);
+        $this->assertStringNotContainsString('margin-top:-28px', $html);
         $this->assertStringNotContainsString('height="200"', $html);
         $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html);
         $this->assertStringNotContainsString('Laravel Logo', $html);
@@ -140,9 +142,11 @@ class ItineraryMailTest extends TestCase
         $this->assertStringNotContainsString('Gothic Quarter', $html);
         $this->assertStringNotContainsString('Sagrada Familia', $html);
         $this->assertStringContainsString($theme['accent'], $html);
-        $this->assertStringContainsString('data-motif="wave"', $html);
-        $this->assertStringContainsString('margin-top:-28px', $html);
-        $this->assertStringContainsString('height="56"', $html);
+        $this->assertStringContainsString('button-vacation', $html);
+        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('width="120"', $html);
+        $this->assertStringNotContainsString('data-motif', $html);
+        $this->assertStringNotContainsString('margin-top:-28px', $html);
         $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html);
     }
 }

@@ -34,6 +34,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'google_sub',
         'city',
         'interests',
         'stripe_customer_id',

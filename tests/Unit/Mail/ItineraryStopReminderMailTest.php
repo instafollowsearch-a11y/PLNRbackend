@@ -7,7 +7,6 @@ use App\Models\Itinerary;
 use App\Models\ItineraryStopReminder;
 use App\Models\PlanSession;
 use App\Models\PlanType;
-use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -37,13 +36,16 @@ class ItineraryStopReminderMailTest extends TestCase
         ]);
 
         $html = (new ItineraryStopReminderMail($reminder))->render();
-        $theme = PlanTypeMailTheme::for('date_night');
 
         $this->assertStringContainsString('PLNR', $html);
-        $this->assertStringContainsString($theme['accent'], $html);
-        $this->assertStringContainsString('data-motif="heart"', $html);
-        $this->assertStringContainsString('margin-top:-28px', $html);
-        $this->assertStringContainsString('height="64"', $html);
+        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('width="120"', $html);
+        $this->assertStringContainsString('#F7F4F0', $html);
+        $this->assertStringContainsString('#1A1A1A', $html);
+        $this->assertStringContainsString('Date Night', $html);
+        $this->assertStringContainsString('Coming up soon', $html);
+        $this->assertStringNotContainsString('data-motif', $html);
+        $this->assertStringNotContainsString('margin-top:-28px', $html);
         $this->assertStringContainsString('Wine Bar', $html);
         $this->assertStringContainsString('Tasting flight', $html);
         $this->assertStringContainsString('Austin', $html);

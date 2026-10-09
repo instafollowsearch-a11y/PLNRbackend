@@ -3,6 +3,7 @@
 namespace App\Services\Places;
 
 use App\Services\Settings\AppSettings;
+use App\Support\Geo\LocationLabel;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -33,7 +34,7 @@ class PlaceListingLookup
             return $content;
         }
 
-        $cityName = trim((string) $city);
+        $cityName = LocationLabel::locality($city);
 
         if ($cityName === '') {
             return $content;

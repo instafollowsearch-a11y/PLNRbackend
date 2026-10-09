@@ -115,4 +115,22 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Markdown Mail Settings
+    |--------------------------------------------------------------------------
+    |
+    | PLNR mail uses Laravel's published mail components. Colors live in the
+    | plnr theme; plan-type accents are button colors in that stylesheet.
+    |
+    */
+
+    'markdown' => [
+        'theme' => 'plnr',
+
+        'paths' => [
+            resource_path('views/vendor/mail'),
+        ],
+    ],
+
 ];
