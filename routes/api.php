@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\InterestAccountController as AdminInterestAccountController;
+use App\Http\Controllers\Api\V1\Admin\InterestMatchController as AdminInterestMatchController;
 use App\Http\Controllers\Api\V1\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Api\V1\Admin\StatsController as AdminStatsController;
 use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
@@ -108,6 +110,9 @@ Route::prefix('v1')->group(function (): void {
         Route::middleware('admin')->prefix('admin')->group(function (): void {
             Route::get('/stats', [AdminStatsController::class, 'show']);
             Route::get('/visits', [AdminVisitController::class, 'index']);
+            Route::get('/interest-matches', [AdminInterestMatchController::class, 'index']);
+            Route::get('/interest-accounts', [AdminInterestAccountController::class, 'index']);
+            Route::post('/interest-scans', [AdminInterestMatchController::class, 'store']);
             Route::get('/users', [AdminUserController::class, 'index']);
             Route::patch('/users/{user}', [AdminUserController::class, 'update']);
             Route::get('/settings', [AdminSettingsController::class, 'show']);

@@ -110,6 +110,11 @@ class User extends Authenticatable
         return $this->hasMany(WeekendRecommendation::class);
     }
 
+    public function interestMatches(): HasMany
+    {
+        return $this->hasMany(InterestMatch::class);
+    }
+
     public function paymentMethods(): HasMany
     {
         return $this->hasMany(PaymentMethod::class);
