@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Places;
 
+use App\Models\Itinerary;
 use App\Models\PlanSession;
 use App\Models\PlanType;
 use App\Models\Suggestion;
@@ -132,6 +133,72 @@ class PlaceListingLookupTest extends TestCase
                 && ! str_contains($request->url(), 'test-places-key')
                 && $request->hasHeader('X-Goog-Api-Key');
         });
+    }
+
+    public function test_a_saved_plan_reloads_its_photo_when_the_id_was_lost(): void
+    {
+        config(['services.google.places_key' => 'test-places-key']);
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/media')) {
+                return Http::response('jpeg-bytes', 200, ['Content-Type' => 'image/jpeg']);
+            }
+
+            return Http::response([
+                'places' => [[
+                    'photos' => [[
+                        'name' => 'places/ChIJelephant/photos/AUacShh3photo',
+                    ]],
+                ]],
+            ]);
+        });
+
+        $token = 'dqLdzwOtbEPw9VXBCTS1MmDRfRaiAg3P';
+        $session = $this->sessionIn('Austin');
+        Itinerary::factory()->create([
+            'plan_session_id' => $session->id,
+            'content' => [
+                'title' => 'Night in Austin',
+                'stops' => [[
+                    'time' => '8:00 PM',
+                    'name' => 'Elephant Room',
+                    'activity' => 'Live jazz',
+                    'notes' => '',
+                    'photo_url' => url('/api/v1/place-photos/'.$token),
+                ]],
+            ],
+        ]);
+
+        $response = $this->get('/api/v1/place-photos/'.$token)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
+
+        $this->assertDatabaseHas('place_photos', [
+            'token' => $token,
+            'photo_name' => 'places/ChIJelephant/photos/AUacShh3photo',
+        ]);
+
+        Cache::flush();
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), 'searchText')) {
+                return Http::response('should-not-search', 500);
+            }
+
+            return Http::response('jpeg-bytes', 200, ['Content-Type' => 'image/jpeg']);
+        });
+
+        $this->get('/api/v1/place-photos/'.$token)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
+    }
+
+    public function test_an_unknown_photo_token_stays_missing(): void
+    {
+        config(['services.google.places_key' => 'test-places-key']);
+        Http::fake();
+
+        $this->get('/api/v1/place-photos/notarealtoken')->assertNotFound();
+
+        Http::assertNothingSent();
     }
 
     public function test_a_stop_with_no_existing_maps_link_receives_the_listing_link(): void

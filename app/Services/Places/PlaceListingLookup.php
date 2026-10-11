@@ -2,6 +2,7 @@
 
 namespace App\Services\Places;
 
+use App\Models\Itinerary;
 use App\Models\PlacePhoto;
 use App\Services\Settings\AppSettings;
 use App\Support\Geo\LocationLabel;
@@ -69,16 +70,13 @@ class PlaceListingLookup
 
         $cached = Cache::get(self::PHOTO_CACHE_PREFIX.$token);
 
-        if (! is_string($cached) || ! $this->isPhotoName($cached)) {
-            return null;
+        if (is_string($cached) && $this->isPhotoName($cached)) {
+            $this->storePhoto($token, $cached);
+
+            return $cached;
         }
 
-        PlacePhoto::query()->updateOrCreate(
-            ['token' => $token],
-            ['photo_name' => $cached],
-        );
-
-        return $cached;
+        return $this->recoverPhotoName($token);
     }
 
     /**
@@ -258,11 +256,7 @@ class PlaceListingLookup
             return;
         }
 
-        PlacePhoto::query()->updateOrCreate(
-            ['token' => $token],
-            ['photo_name' => $name],
-        );
-        Cache::put(self::PHOTO_CACHE_PREFIX.$token, $name, now()->addDays(self::PHOTO_TTL_DAYS));
+        $this->storePhoto($token, $name);
     }
 
     /**
@@ -390,6 +384,148 @@ class PlaceListingLookup
         }
 
         return (float) $value;
+    }
+
+    /**
+     * @param  array<int, mixed>  $stops
+     */
+    private function storePhoto(string $token, string $name): void
+    {
+        PlacePhoto::query()->updateOrCreate(
+            ['token' => $token],
+            ['photo_name' => $name],
+        );
+        Cache::put(self::PHOTO_CACHE_PREFIX.$token, $name, now()->addDays(self::PHOTO_TTL_DAYS));
+    }
+
+    private function recoverPhotoName(string $token): ?string
+    {
+        $place = $this->placeForPhotoToken($token);
+
+        if ($place === null) {
+            return null;
+        }
+
+        $name = $this->fetchPhotoName($place['name'], $place['city']);
+
+        if ($name === null) {
+            return null;
+        }
+
+        $this->storePhoto($token, $name);
+
+        return $name;
+    }
+
+    /**
+     * @return array{name: string, city: string}|null
+     */
+    private function placeForPhotoToken(string $token): ?array
+    {
+        $query = Itinerary::query()->with('planSession');
+        $needle = '%place-photos%'.$token.'%';
+
+        if ($query->getConnection()->getDriverName() === 'pgsql') {
+            $query->whereRaw('content::text like ?', [$needle]);
+        } else {
+            $query->where('content', 'like', $needle);
+        }
+
+        $itinerary = $query->first();
+        $content = $itinerary?->content;
+
+        if (! is_array($content)) {
+            return null;
+        }
+
+        $name = $this->stopNameForToken($content, $token);
+        $city = LocationLabel::locality($itinerary->planSession?->city);
+
+        if ($name === null || $city === '') {
+            return null;
+        }
+
+        return ['name' => $name, 'city' => $city];
+    }
+
+    /**
+     * @param  array<string, mixed>  $content
+     */
+    private function stopNameForToken(array $content, string $token): ?string
+    {
+        $fromStops = $this->nameFromStops($content['stops'] ?? null, $token);
+
+        if ($fromStops !== null) {
+            return $fromStops;
+        }
+
+        foreach ($content['days'] ?? [] as $day) {
+            if (! is_array($day)) {
+                continue;
+            }
+
+            $name = $this->nameFromStops($day['stops'] ?? null, $token);
+
+            if ($name !== null) {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
+    private function nameFromStops(mixed $stops, string $token): ?string
+    {
+        if (! is_array($stops)) {
+            return null;
+        }
+
+        foreach ($stops as $stop) {
+            if (! is_array($stop)) {
+                continue;
+            }
+
+            $url = $stop['photo_url'] ?? null;
+
+            if (! is_string($url) || ! str_contains($url, '/place-photos/'.$token)) {
+                continue;
+            }
+
+            $name = trim((string) ($stop['name'] ?? ''));
+
+            return $name !== '' ? $name : null;
+        }
+
+        return null;
+    }
+
+    private function fetchPhotoName(string $placeName, string $city): ?string
+    {
+        $key = $this->settings->googleApiKey();
+
+        if ($key === null) {
+            return null;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'X-Goog-Api-Key' => $key,
+                'X-Goog-FieldMask' => 'places.photos.name',
+            ])->timeout(8)->post(self::SEARCH_URL, [
+                'textQuery' => $placeName.', '.$city,
+                'pageSize' => 1,
+            ]);
+        } catch (ConnectionException|Throwable) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $photoName = $response->json('places.0.photos.0.name');
+
+        return is_string($photoName) && $this->isPhotoName($photoName) ? $photoName : null;
     }
 
     /**
