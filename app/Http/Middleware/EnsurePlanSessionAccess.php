@@ -32,6 +32,10 @@ class EnsurePlanSessionAccess
             return $next($request);
         }
 
+        if ($request->isMethod('GET') && $planSession->itinerary()->exists()) {
+            return $next($request);
+        }
+
         abort(403, 'You do not have access to this plan session.');
     }
 }

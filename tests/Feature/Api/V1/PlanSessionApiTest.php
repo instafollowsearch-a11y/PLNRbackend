@@ -283,6 +283,29 @@ class PlanSessionApiTest extends TestCase
         $this->getJson("/api/v1/plan-sessions/{$uuid}")->assertForbidden();
     }
 
+    public function test_email_link_can_open_a_finished_itinerary_without_the_owner_login(): void
+    {
+        $owner = User::factory()->create();
+        $session = PlanSession::factory()->create([
+            'user_id' => $owner->id,
+            'status' => PlanSession::STATUS_ITINERARY,
+        ]);
+        Itinerary::factory()->create([
+            'plan_session_id' => $session->id,
+            'content' => ['title' => 'Night in Austin'],
+        ]);
+
+        $this->getJson("/api/v1/plan-sessions/{$session->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.plan_session.itinerary.content.title', 'Night in Austin');
+
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson("/api/v1/plan-sessions/{$session->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.plan_session.itinerary.content.title', 'Night in Austin');
+    }
+
     public function test_validation_errors_on_invalid_answers(): void
     {
         $this->postJson('/api/v1/plan-sessions', [

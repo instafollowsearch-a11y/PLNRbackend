@@ -29,7 +29,7 @@ class PlanSessionPolicy
 
     private function canView(?User $user, PlanSession $planSession): bool
     {
-        if ($planSession->user_id === null) {
+        if ($planSession->user_id === null || $planSession->itinerary()->exists()) {
             return true;
         }
 
