@@ -21,6 +21,8 @@ class UpdateSettingsRequest extends FormRequest
             'anthropic_api_key' => ['sometimes', 'nullable', 'string', 'max:500'],
             'google_places_api_key' => ['sometimes', 'nullable', 'string', 'max:500'],
             'google_client_id' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9_-]{10,}\.apps\.googleusercontent\.com$/'],
+            'google_ios_client_id' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9_-]{10,}\.apps\.googleusercontent\.com$/'],
+            'google_android_client_id' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9_-]{10,}\.apps\.googleusercontent\.com$/'],
             'twilio_account_sid' => ['sometimes', 'nullable', 'string', 'regex:/^AC[0-9a-fA-F]{32}$/'],
             'twilio_auth_token' => ['sometimes', 'nullable', 'string', 'max:255'],
             'twilio_from_number' => ['sometimes', 'nullable', 'string', 'regex:/^\+[1-9]\d{7,14}$/'],
@@ -44,6 +46,8 @@ class UpdateSettingsRequest extends FormRequest
             'clear_anthropic_api_key' => ['sometimes', 'boolean'],
             'clear_google_places_api_key' => ['sometimes', 'boolean'],
             'clear_google_client_id' => ['sometimes', 'boolean'],
+            'clear_google_ios_client_id' => ['sometimes', 'boolean'],
+            'clear_google_android_client_id' => ['sometimes', 'boolean'],
             'clear_twilio_account_sid' => ['sometimes', 'boolean'],
             'clear_twilio_auth_token' => ['sometimes', 'boolean'],
             'clear_twilio_from_number' => ['sometimes', 'boolean'],
@@ -73,6 +77,8 @@ class UpdateSettingsRequest extends FormRequest
     {
         return [
             'google_client_id.regex' => 'Enter the Web client ID ending in .apps.googleusercontent.com.',
+            'google_ios_client_id.regex' => 'Enter the iOS client ID ending in .apps.googleusercontent.com.',
+            'google_android_client_id.regex' => 'Enter the Android client ID ending in .apps.googleusercontent.com.',
             'twilio_account_sid.regex' => 'Enter the Twilio Account SID. It starts with AC.',
             'twilio_from_number.regex' => 'Enter the Twilio number with country code, such as +15551234567.',
             'twilio_messaging_service_sid.regex' => 'Enter the Messaging Service SID. It starts with MG.',

@@ -20,6 +20,10 @@ class AppSettings
 
     public const GOOGLE_CLIENT_ID = 'google_client_id';
 
+    public const GOOGLE_IOS_CLIENT_ID = 'google_ios_client_id';
+
+    public const GOOGLE_ANDROID_CLIENT_ID = 'google_android_client_id';
+
     public const TWILIO_ACCOUNT_SID = 'twilio_account_sid';
 
     public const TWILIO_AUTH_TOKEN = 'twilio_auth_token';
@@ -75,6 +79,8 @@ class AppSettings
         self::ANTHROPIC_API_KEY,
         self::GOOGLE_PLACES_API_KEY,
         self::GOOGLE_CLIENT_ID,
+        self::GOOGLE_IOS_CLIENT_ID,
+        self::GOOGLE_ANDROID_CLIENT_ID,
         self::TWILIO_ACCOUNT_SID,
         self::TWILIO_AUTH_TOKEN,
         self::TWILIO_FROM_NUMBER,
@@ -215,6 +221,20 @@ class AppSettings
             config('services.google.client_id'),
         );
         $settings[self::GOOGLE_CLIENT_ID.'_env'] = config('services.google.client_id');
+
+        $settings[self::GOOGLE_IOS_CLIENT_ID] = $this->googleIosClientId();
+        $settings[self::GOOGLE_IOS_CLIENT_ID.'_source'] = $this->sourceFor(
+            self::GOOGLE_IOS_CLIENT_ID,
+            config('services.google.ios_client_id'),
+        );
+        $settings[self::GOOGLE_IOS_CLIENT_ID.'_env'] = config('services.google.ios_client_id');
+
+        $settings[self::GOOGLE_ANDROID_CLIENT_ID] = $this->googleAndroidClientId();
+        $settings[self::GOOGLE_ANDROID_CLIENT_ID.'_source'] = $this->sourceFor(
+            self::GOOGLE_ANDROID_CLIENT_ID,
+            config('services.google.android_client_id'),
+        );
+        $settings[self::GOOGLE_ANDROID_CLIENT_ID.'_env'] = config('services.google.android_client_id');
 
         $settings[self::TWILIO_ACCOUNT_SID] = $this->twilioAccountSid();
         $settings[self::TWILIO_ACCOUNT_SID.'_source'] = $this->sourceFor(
@@ -533,6 +553,50 @@ class AppSettings
             self::GOOGLE_CLIENT_ID,
             is_string($fallback) ? $fallback : null,
         );
+    }
+
+    public function googleIosClientId(): ?string
+    {
+        $fallback = config('services.google.ios_client_id');
+
+        return $this->resolveString(
+            self::GOOGLE_IOS_CLIENT_ID,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function googleAndroidClientId(): ?string
+    {
+        $fallback = config('services.google.android_client_id');
+
+        return $this->resolveString(
+            self::GOOGLE_ANDROID_CLIENT_ID,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    /**
+     * Client IDs that may appear as the audience of a Google ID token.
+     *
+     * @return list<string>
+     */
+    public function googleSignInClientIds(): array
+    {
+        $ids = [];
+
+        foreach ([$this->googleClientId(), $this->googleIosClientId(), $this->googleAndroidClientId()] as $clientId) {
+            if (! is_string($clientId)) {
+                continue;
+            }
+
+            $clientId = trim($clientId);
+
+            if ($clientId !== '' && ! in_array($clientId, $ids, true)) {
+                $ids[] = $clientId;
+            }
+        }
+
+        return $ids;
     }
 
     public function twilioAccountSid(): ?string

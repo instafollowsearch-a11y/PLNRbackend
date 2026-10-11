@@ -58,6 +58,31 @@ class GoogleAndTwilioSettingsApiTest extends TestCase
             ->assertJsonPath('data.settings.google_client_id_source', 'env');
     }
 
+    public function test_admin_can_save_ios_and_android_client_ids_for_the_phone_app(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $ios = '789738263381-iosclientidvalue000000000000.apps.googleusercontent.com';
+        $android = '789738263381-androidclientidvalue00000000.apps.googleusercontent.com';
+
+        $this->patchJson('/api/v1/admin/settings', [
+            'google_ios_client_id' => $ios,
+            'google_android_client_id' => $android,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.settings.google_ios_client_id', $ios)
+            ->assertJsonPath('data.settings.google_ios_client_id_source', 'admin')
+            ->assertJsonPath('data.settings.google_android_client_id', $android)
+            ->assertJsonPath('data.settings.google_android_client_id_source', 'admin');
+
+        auth()->forgetGuards();
+
+        $this->getJson('/api/v1/google-sign-in')
+            ->assertOk()
+            ->assertJsonPath('data.ios_client_id', $ios)
+            ->assertJsonPath('data.android_client_id', $android);
+    }
+
     public function test_a_places_key_is_rejected_as_the_google_client_id(): void
     {
         Sanctum::actingAs(User::factory()->admin()->create());

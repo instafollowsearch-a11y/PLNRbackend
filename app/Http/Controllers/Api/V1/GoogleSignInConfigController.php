@@ -13,6 +13,8 @@ class GoogleSignInConfigController extends Controller
         return response()->json([
             'data' => [
                 'client_id' => $settings->googleClientId(),
+                'ios_client_id' => $settings->googleIosClientId(),
+                'android_client_id' => $settings->googleAndroidClientId(),
             ],
             'message' => 'Google sign-in configuration retrieved.',
         ]);

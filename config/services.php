@@ -112,6 +112,8 @@ return [
         'places_key' => env('GOOGLE_PLACES_API_KEY'),
         'gas_price_per_gallon' => (float) env('GAS_PRICE_PER_GALLON', 3.5),
         'client_id' => env('GOOGLE_CLIENT_ID'),
+        'ios_client_id' => env('GOOGLE_IOS_CLIENT_ID'),
+        'android_client_id' => env('GOOGLE_ANDROID_CLIENT_ID'),
     ],
 
     'twilio' => [

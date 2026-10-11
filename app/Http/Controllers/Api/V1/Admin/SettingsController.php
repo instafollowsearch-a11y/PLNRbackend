@@ -28,6 +28,8 @@ class SettingsController extends Controller
         $this->applyOptionalString($request, $settings, 'anthropic_api_key', AppSettings::ANTHROPIC_API_KEY, 'clear_anthropic_api_key');
         $this->applyOptionalString($request, $settings, 'google_places_api_key', AppSettings::GOOGLE_PLACES_API_KEY, 'clear_google_places_api_key');
         $this->applyOptionalString($request, $settings, 'google_client_id', AppSettings::GOOGLE_CLIENT_ID, 'clear_google_client_id');
+        $this->applyOptionalString($request, $settings, 'google_ios_client_id', AppSettings::GOOGLE_IOS_CLIENT_ID, 'clear_google_ios_client_id');
+        $this->applyOptionalString($request, $settings, 'google_android_client_id', AppSettings::GOOGLE_ANDROID_CLIENT_ID, 'clear_google_android_client_id');
         $this->applyOptionalString($request, $settings, 'twilio_account_sid', AppSettings::TWILIO_ACCOUNT_SID, 'clear_twilio_account_sid');
         $this->applyOptionalString($request, $settings, 'twilio_auth_token', AppSettings::TWILIO_AUTH_TOKEN, 'clear_twilio_auth_token');
         $this->applyOptionalString($request, $settings, 'twilio_from_number', AppSettings::TWILIO_FROM_NUMBER, 'clear_twilio_from_number');

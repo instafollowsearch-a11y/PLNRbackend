@@ -12,24 +12,20 @@ class GoogleIdTokenVerifier implements VerifiesGoogleIdToken
      */
     public function verify(string $idToken): ?array
     {
-        $clientId = $this->clientId();
+        foreach ($this->clientIds() as $clientId) {
+            try {
+                $client = new Client(['client_id' => $clientId]);
+                $payload = $client->verifyIdToken($idToken);
+            } catch (\Throwable) {
+                continue;
+            }
 
-        if ($clientId === '') {
-            return null;
+            if (is_array($payload) && $this->audienceMatches($payload, $clientId)) {
+                return $payload;
+            }
         }
 
-        try {
-            $client = new Client(['client_id' => $clientId]);
-            $payload = $client->verifyIdToken($idToken);
-        } catch (\Throwable) {
-            return null;
-        }
-
-        if (! is_array($payload) || ! $this->audienceMatches($payload, $clientId)) {
-            return null;
-        }
-
-        return $payload;
+        return null;
     }
 
     /**
@@ -46,12 +42,33 @@ class GoogleIdTokenVerifier implements VerifiesGoogleIdToken
         return $audience === $clientId;
     }
 
-    private function clientId(): string
+    /**
+     * @return list<string>
+     */
+    private function clientIds(): array
     {
         try {
-            return trim((string) app(AppSettings::class)->googleClientId());
+            return app(AppSettings::class)->googleSignInClientIds();
         } catch (\Throwable) {
-            return trim((string) config('services.google.client_id'));
+            $ids = [];
+
+            foreach ([
+                config('services.google.client_id'),
+                config('services.google.ios_client_id'),
+                config('services.google.android_client_id'),
+            ] as $clientId) {
+                if (! is_string($clientId)) {
+                    continue;
+                }
+
+                $clientId = trim($clientId);
+
+                if ($clientId !== '' && ! in_array($clientId, $ids, true)) {
+                    $ids[] = $clientId;
+                }
+            }
+
+            return $ids;
         }
     }
 }
