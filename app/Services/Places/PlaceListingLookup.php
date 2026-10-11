@@ -2,6 +2,7 @@
 
 namespace App\Services\Places;
 
+use App\Models\PlacePhoto;
 use App\Services\Settings\AppSettings;
 use App\Support\Geo\LocationLabel;
 use Illuminate\Http\Client\ConnectionException;
@@ -60,9 +61,24 @@ class PlaceListingLookup
 
     public function photoName(string $token): ?string
     {
-        $name = Cache::get(self::PHOTO_CACHE_PREFIX.$token);
+        $stored = PlacePhoto::query()->where('token', $token)->value('photo_name');
 
-        return is_string($name) && $this->isPhotoName($name) ? $name : null;
+        if (is_string($stored) && $this->isPhotoName($stored)) {
+            return $stored;
+        }
+
+        $cached = Cache::get(self::PHOTO_CACHE_PREFIX.$token);
+
+        if (! is_string($cached) || ! $this->isPhotoName($cached)) {
+            return null;
+        }
+
+        PlacePhoto::query()->updateOrCreate(
+            ['token' => $token],
+            ['photo_name' => $cached],
+        );
+
+        return $cached;
     }
 
     /**
@@ -242,6 +258,10 @@ class PlaceListingLookup
             return;
         }
 
+        PlacePhoto::query()->updateOrCreate(
+            ['token' => $token],
+            ['photo_name' => $name],
+        );
         Cache::put(self::PHOTO_CACHE_PREFIX.$token, $name, now()->addDays(self::PHOTO_TTL_DAYS));
     }
 

@@ -14,6 +14,7 @@ use App\Services\Places\PlaceListingLookup;
 use App\Services\Places\RoadTripDriveEstimate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -111,6 +112,13 @@ class PlaceListingLookupTest extends TestCase
         $this->assertArrayNotHasKey('maps_url', $stops[1]);
 
         $path = parse_url($stops[0]['photo_url'], PHP_URL_PATH);
+        $this->get($path)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
+
+        $this->assertDatabaseCount('place_photos', 1);
+        Cache::flush();
+
         $this->get($path)
             ->assertOk()
             ->assertHeader('Content-Type', 'image/jpeg');
