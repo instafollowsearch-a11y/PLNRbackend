@@ -86,6 +86,11 @@ class PlaceListingLookup
         return $this->recoverPhotoName($token);
     }
 
+    public function replacePhotoName(string $token): ?string
+    {
+        return $this->recoverPhotoName($token);
+    }
+
     /**
      * @param  array<int, mixed>  $stops
      * @return array<int, mixed>

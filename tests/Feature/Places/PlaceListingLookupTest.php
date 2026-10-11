@@ -3,6 +3,7 @@
 namespace Tests\Feature\Places;
 
 use App\Models\Itinerary;
+use App\Models\PlacePhoto;
 use App\Models\PlanSession;
 use App\Models\PlanType;
 use App\Models\Suggestion;
@@ -240,6 +241,58 @@ class PlaceListingLookupTest extends TestCase
             return str_contains($request->url(), 'searchText')
                 && str_contains($request->body(), "Dad's Garage Theatre, Atlanta, Georgia");
         });
+    }
+
+    public function test_a_rejected_saved_photo_is_loaded_again_from_the_place(): void
+    {
+        config(['services.google.places_key' => 'test-places-key']);
+        $mediaCalls = 0;
+        Http::fake(function ($request) use (&$mediaCalls) {
+            if (str_contains($request->url(), '/media')) {
+                $mediaCalls++;
+
+                if ($mediaCalls === 1) {
+                    return Http::response([
+                        'error' => ['message' => 'Request contains an invalid argument.'],
+                    ], 400);
+                }
+
+                return Http::response('jpeg-bytes', 200, ['Content-Type' => 'image/jpeg']);
+            }
+
+            return Http::response([
+                'places' => [[
+                    'photos' => [[
+                        'name' => 'places/ChIJfresh/photos/AUacShh3photo',
+                    ]],
+                ]],
+            ]);
+        });
+
+        $token = 'aDGlROLDTgGNShC2wrDv1W7PmvyxPRjm';
+        $session = $this->sessionIn('Austin');
+        Itinerary::factory()->create([
+            'plan_session_id' => $session->id,
+            'content' => [
+                'stops' => [[
+                    'name' => 'Elephant Room',
+                    'photo_url' => url('/api/v1/place-photos/'.$token),
+                ]],
+            ],
+        ]);
+        PlacePhoto::query()->create([
+            'token' => $token,
+            'photo_name' => 'places/ChIJold/photos/stalephoto',
+        ]);
+
+        $this->get('/api/v1/place-photos/'.$token)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
+
+        $this->assertDatabaseHas('place_photos', [
+            'token' => $token,
+            'photo_name' => 'places/ChIJfresh/photos/AUacShh3photo',
+        ]);
     }
 
     public function test_a_stop_with_no_existing_maps_link_receives_the_listing_link(): void
