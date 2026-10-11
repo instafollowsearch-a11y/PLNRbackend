@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\BookingConfigController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\EventController;
 use App\Http\Controllers\Api\V1\GeocodeController;
+use App\Http\Controllers\Api\V1\GoogleSignInConfigController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\HotelSuggestionController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
@@ -31,6 +32,7 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/health', [HealthController::class, 'show']);
     Route::get('/booking-config', [BookingConfigController::class, 'show']);
     Route::get('/billing-config', [BillingConfigController::class, 'show']);
+    Route::get('/google-sign-in', [GoogleSignInConfigController::class, 'show']);
     Route::get('/plan-card-images', [PlanCardImageController::class, 'index']);
     Route::get('/plan-card-images/{planType}/file', [PlanCardImageController::class, 'file'])
         ->where('planType', 'date_night|night_out|vacation|road_trip');

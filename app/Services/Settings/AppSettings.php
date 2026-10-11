@@ -18,6 +18,16 @@ class AppSettings
 
     public const GOOGLE_PLACES_API_KEY = 'google_places_api_key';
 
+    public const GOOGLE_CLIENT_ID = 'google_client_id';
+
+    public const TWILIO_ACCOUNT_SID = 'twilio_account_sid';
+
+    public const TWILIO_AUTH_TOKEN = 'twilio_auth_token';
+
+    public const TWILIO_FROM_NUMBER = 'twilio_from_number';
+
+    public const TWILIO_MESSAGING_SERVICE_SID = 'twilio_messaging_service_sid';
+
     public const FINDLOCAL_API_KEY = 'findlocal_api_key';
 
     public const ANTHROPIC_MODEL = 'anthropic_model';
@@ -64,6 +74,11 @@ class AppSettings
     public const OVERRIDABLE = [
         self::ANTHROPIC_API_KEY,
         self::GOOGLE_PLACES_API_KEY,
+        self::GOOGLE_CLIENT_ID,
+        self::TWILIO_ACCOUNT_SID,
+        self::TWILIO_AUTH_TOKEN,
+        self::TWILIO_FROM_NUMBER,
+        self::TWILIO_MESSAGING_SERVICE_SID,
         self::FINDLOCAL_API_KEY,
         self::ANTHROPIC_MODEL,
         self::ANTHROPIC_URL,
@@ -88,6 +103,7 @@ class AppSettings
         self::FINDLOCAL_API_KEY,
         self::STRIPE_SECRET,
         self::STRIPE_WEBHOOK_SECRET,
+        self::TWILIO_AUTH_TOKEN,
     ];
 
     private const CACHE_KEY = 'plnr.app_settings';
@@ -192,6 +208,41 @@ class AppSettings
             config('services.google.places_key'),
         );
         $settings[self::GOOGLE_PLACES_API_KEY.'_hint'] = $this->maskSecret($this->googleApiKey());
+
+        $settings[self::GOOGLE_CLIENT_ID] = $this->googleClientId();
+        $settings[self::GOOGLE_CLIENT_ID.'_source'] = $this->sourceFor(
+            self::GOOGLE_CLIENT_ID,
+            config('services.google.client_id'),
+        );
+        $settings[self::GOOGLE_CLIENT_ID.'_env'] = config('services.google.client_id');
+
+        $settings[self::TWILIO_ACCOUNT_SID] = $this->twilioAccountSid();
+        $settings[self::TWILIO_ACCOUNT_SID.'_source'] = $this->sourceFor(
+            self::TWILIO_ACCOUNT_SID,
+            config('services.twilio.account_sid'),
+        );
+        $settings[self::TWILIO_ACCOUNT_SID.'_env'] = config('services.twilio.account_sid');
+
+        $settings[self::TWILIO_AUTH_TOKEN.'_set'] = $this->twilioAuthToken() !== null;
+        $settings[self::TWILIO_AUTH_TOKEN.'_source'] = $this->sourceFor(
+            self::TWILIO_AUTH_TOKEN,
+            config('services.twilio.auth_token'),
+        );
+        $settings[self::TWILIO_AUTH_TOKEN.'_hint'] = $this->maskSecret($this->twilioAuthToken());
+
+        $settings[self::TWILIO_FROM_NUMBER] = $this->twilioFromNumber();
+        $settings[self::TWILIO_FROM_NUMBER.'_source'] = $this->sourceFor(
+            self::TWILIO_FROM_NUMBER,
+            config('services.twilio.from'),
+        );
+        $settings[self::TWILIO_FROM_NUMBER.'_env'] = config('services.twilio.from');
+
+        $settings[self::TWILIO_MESSAGING_SERVICE_SID] = $this->twilioMessagingServiceSid();
+        $settings[self::TWILIO_MESSAGING_SERVICE_SID.'_source'] = $this->sourceFor(
+            self::TWILIO_MESSAGING_SERVICE_SID,
+            config('services.twilio.messaging_service_sid'),
+        );
+        $settings[self::TWILIO_MESSAGING_SERVICE_SID.'_env'] = config('services.twilio.messaging_service_sid');
 
         $settings[self::FINDLOCAL_API_KEY.'_set'] = $this->findLocalApiKey() !== null;
         $settings[self::FINDLOCAL_API_KEY.'_source'] = $this->sourceFor(
@@ -470,6 +521,56 @@ class AppSettings
 
         return $this->resolveString(
             self::GOOGLE_PLACES_API_KEY,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function googleClientId(): ?string
+    {
+        $fallback = config('services.google.client_id');
+
+        return $this->resolveString(
+            self::GOOGLE_CLIENT_ID,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function twilioAccountSid(): ?string
+    {
+        $fallback = config('services.twilio.account_sid');
+
+        return $this->resolveString(
+            self::TWILIO_ACCOUNT_SID,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function twilioAuthToken(): ?string
+    {
+        $fallback = config('services.twilio.auth_token');
+
+        return $this->resolveString(
+            self::TWILIO_AUTH_TOKEN,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function twilioFromNumber(): ?string
+    {
+        $fallback = config('services.twilio.from');
+
+        return $this->resolveString(
+            self::TWILIO_FROM_NUMBER,
+            is_string($fallback) ? $fallback : null,
+        );
+    }
+
+    public function twilioMessagingServiceSid(): ?string
+    {
+        $fallback = config('services.twilio.messaging_service_sid');
+
+        return $this->resolveString(
+            self::TWILIO_MESSAGING_SERVICE_SID,
             is_string($fallback) ? $fallback : null,
         );
     }

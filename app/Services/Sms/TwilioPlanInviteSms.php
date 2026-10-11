@@ -2,6 +2,7 @@
 
 namespace App\Services\Sms;
 
+use App\Services\Settings\AppSettings;
 use Twilio\Rest\Client;
 
 class TwilioPlanInviteSms implements SendsPlanInviteSms
@@ -43,22 +44,34 @@ class TwilioPlanInviteSms implements SendsPlanInviteSms
 
     private function accountSid(): ?string
     {
-        return $this->filled(config('services.twilio.account_sid'));
+        return $this->setting(fn (AppSettings $settings) => $settings->twilioAccountSid(), 'services.twilio.account_sid');
     }
 
     private function authToken(): ?string
     {
-        return $this->filled(config('services.twilio.auth_token'));
+        return $this->setting(fn (AppSettings $settings) => $settings->twilioAuthToken(), 'services.twilio.auth_token');
     }
 
     private function fromNumber(): ?string
     {
-        return $this->filled(config('services.twilio.from'));
+        return $this->setting(fn (AppSettings $settings) => $settings->twilioFromNumber(), 'services.twilio.from');
     }
 
     private function messagingServiceSid(): ?string
     {
-        return $this->filled(config('services.twilio.messaging_service_sid'));
+        return $this->setting(fn (AppSettings $settings) => $settings->twilioMessagingServiceSid(), 'services.twilio.messaging_service_sid');
+    }
+
+    /**
+     * @param  callable(AppSettings): ?string  $read
+     */
+    private function setting(callable $read, string $configKey): ?string
+    {
+        try {
+            return $this->filled($read(app(AppSettings::class)));
+        } catch (\Throwable) {
+            return $this->filled(config($configKey));
+        }
     }
 
     private function filled(mixed $value): ?string

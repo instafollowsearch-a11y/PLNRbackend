@@ -2,6 +2,7 @@
 
 namespace App\Services\Auth;
 
+use App\Services\Settings\AppSettings;
 use Google\Client;
 
 class GoogleIdTokenVerifier implements VerifiesGoogleIdToken
@@ -11,7 +12,7 @@ class GoogleIdTokenVerifier implements VerifiesGoogleIdToken
      */
     public function verify(string $idToken): ?array
     {
-        $clientId = trim((string) config('services.google.client_id'));
+        $clientId = $this->clientId();
 
         if ($clientId === '') {
             return null;
@@ -43,5 +44,14 @@ class GoogleIdTokenVerifier implements VerifiesGoogleIdToken
         }
 
         return $audience === $clientId;
+    }
+
+    private function clientId(): string
+    {
+        try {
+            return trim((string) app(AppSettings::class)->googleClientId());
+        } catch (\Throwable) {
+            return trim((string) config('services.google.client_id'));
+        }
     }
 }
