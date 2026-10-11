@@ -196,9 +196,50 @@ class PlaceListingLookupTest extends TestCase
         config(['services.google.places_key' => 'test-places-key']);
         Http::fake();
 
-        $this->get('/api/v1/place-photos/notarealtoken')->assertNotFound();
+        $this->get('/api/v1/place-photos/notarealtoken')
+            ->assertNotFound()
+            ->assertHeader('X-Plnr-Photo', 'missing');
 
         Http::assertNothingSent();
+    }
+
+    public function test_a_draft_reloads_its_photo_when_the_itinerary_was_not_saved(): void
+    {
+        config(['services.google.places_key' => 'test-places-key']);
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/media')) {
+                return Http::response('jpeg-bytes', 200, ['Content-Type' => 'image/jpeg']);
+            }
+
+            return Http::response([
+                'places' => [[
+                    'photos' => [[
+                        'name' => 'places/ChIJdraft/photos/AUacShh3photo',
+                    ]],
+                ]],
+            ]);
+        });
+
+        $token = 'jx7zCgWqOCHYvB82hub3opaK659AW0fZ';
+        $session = $this->sessionIn('Atlanta, Georgia');
+        Suggestion::factory()->create([
+            'plan_session_id' => $session->id,
+            'itinerary_content' => [
+                'stops' => [[
+                    'name' => "Dad's Garage Theatre",
+                    'photo_url' => url('/api/v1/place-photos/'.$token),
+                ]],
+            ],
+        ]);
+
+        $this->get('/api/v1/place-photos/'.$token)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
+
+        Http::assertSent(function ($request): bool {
+            return str_contains($request->url(), 'searchText')
+                && str_contains($request->body(), "Dad's Garage Theatre, Atlanta, Georgia");
+        });
     }
 
     public function test_a_stop_with_no_existing_maps_link_receives_the_listing_link(): void

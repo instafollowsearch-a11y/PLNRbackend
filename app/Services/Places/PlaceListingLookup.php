@@ -4,6 +4,7 @@ namespace App\Services\Places;
 
 use App\Models\Itinerary;
 use App\Models\PlacePhoto;
+use App\Models\Suggestion;
 use App\Services\Settings\AppSettings;
 use App\Support\Geo\LocationLabel;
 use Illuminate\Http\Client\ConnectionException;
@@ -62,6 +63,12 @@ class PlaceListingLookup
 
     public function photoName(string $token): ?string
     {
+        $embedded = $this->embeddedPhotoName($token);
+
+        if ($embedded !== null) {
+            return $embedded;
+        }
+
         $stored = PlacePhoto::query()->where('token', $token)->value('photo_name');
 
         if (is_string($stored) && $this->isPhotoName($stored)) {
@@ -264,13 +271,24 @@ class PlaceListingLookup
      */
     private function photoUrl(array $match): ?string
     {
-        $token = $match['photo_token'] ?? null;
+        $name = $match['photo_name'] ?? null;
 
-        if (! is_string($token) || $token === '') {
+        if (! is_string($name) || ! $this->isPhotoName($name)) {
             return null;
         }
 
-        return url('/api/v1/place-photos/'.$token);
+        return url('/api/v1/place-photos/'.bin2hex($name));
+    }
+
+    private function embeddedPhotoName(string $token): ?string
+    {
+        if (strlen($token) < 32 || strlen($token) % 2 !== 0 || preg_match('/\A[A-Fa-f0-9]+\z/', $token) !== 1) {
+            return null;
+        }
+
+        $name = hex2bin($token);
+
+        return is_string($name) && $this->isPhotoName($name) ? $name : null;
     }
 
     /**
@@ -422,30 +440,57 @@ class PlaceListingLookup
      */
     private function placeForPhotoToken(string $token): ?array
     {
-        $query = Itinerary::query()->with('planSession');
-        $needle = '%place-photos%'.$token.'%';
-
-        if ($query->getConnection()->getDriverName() === 'pgsql') {
-            $query->whereRaw('content::text like ?', [$needle]);
-        } else {
-            $query->where('content', 'like', $needle);
-        }
-
-        $itinerary = $query->first();
+        $itinerary = Itinerary::query()
+            ->with('planSession')
+            ->whereRaw($this->columnContains('content'), [$token])
+            ->first();
         $content = $itinerary?->content;
+        $city = $itinerary?->planSession?->city;
+
+        if (! is_array($content)) {
+            $suggestion = Suggestion::query()
+                ->with('planSession')
+                ->whereRaw($this->columnContains('itinerary_content'), [$token])
+                ->first();
+            $content = $suggestion?->itinerary_content;
+            $city = $suggestion?->planSession?->city;
+        }
 
         if (! is_array($content)) {
             return null;
         }
 
         $name = $this->stopNameForToken($content, $token);
-        $city = LocationLabel::locality($itinerary->planSession?->city);
 
-        if ($name === null || $city === '') {
+        if ($name === null) {
             return null;
         }
 
-        return ['name' => $name, 'city' => $city];
+        return [
+            'name' => $name,
+            'city' => LocationLabel::locality(is_string($city) ? $city : null),
+        ];
+    }
+
+    /**
+     * Find a token inside a JSON column.
+     *
+     * Postgres must not use a :: cast. PDO reads :text as a named parameter,
+     * the lookup matches nothing, and the photo request ends before Google.
+     */
+    private function columnContains(string $column): string
+    {
+        if (! in_array($column, ['content', 'itinerary_content'], true)) {
+            return '0 = 1';
+        }
+
+        $driver = Itinerary::query()->getConnection()->getDriverName();
+
+        if ($driver === 'pgsql') {
+            return 'strpos(cast('.$column.' as text), ?) > 0';
+        }
+
+        return 'instr('.$column.', ?) > 0';
     }
 
     /**
@@ -512,7 +557,7 @@ class PlaceListingLookup
                 'X-Goog-Api-Key' => $key,
                 'X-Goog-FieldMask' => 'places.photos.name',
             ])->timeout(8)->post(self::SEARCH_URL, [
-                'textQuery' => $placeName.', '.$city,
+                'textQuery' => $city !== '' ? $placeName.', '.$city : $placeName,
                 'pageSize' => 1,
             ]);
         } catch (ConnectionException|Throwable) {
