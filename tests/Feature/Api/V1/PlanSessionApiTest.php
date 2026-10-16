@@ -395,10 +395,70 @@ class PlanSessionApiTest extends TestCase
         $this->assertStringContainsString('Something cheaper', $firstPrompt);
         $this->assertStringContainsString('Jazz Crawl', $firstPrompt);
         $this->assertStringContainsString('Elephant Room', $firstPrompt);
-        $this->assertStringContainsString('Keep the city, date, group size, and budget', $firstPrompt);
+        $this->assertStringContainsString('different plans that cost less', $firstPrompt);
         $this->assertStringContainsString('Something cheaper', $secondPrompt);
         $this->assertStringContainsString('More low-key', $secondPrompt);
         $this->assertStringContainsString('Elephant Room', $secondPrompt);
+    }
+
+    public function test_something_cheaper_does_not_return_the_same_plan_at_a_higher_price(): void
+    {
+        $cheap = json_encode([
+            'suggestions' => [[
+                'name' => 'Taco walk',
+                'description' => 'A short cheap night.',
+                'estimated_cost_per_person' => 18,
+                'time_slot' => '7:00 PM',
+                'venues' => ['Taco Row'],
+            ]],
+        ]);
+
+        Http::fake([
+            config('services.anthropic.url') => Http::sequence()
+                ->push($this->anthropicResponseFromOpenAiFixture('suggestions_response.json'))
+                ->push([
+                    'id' => 'msg_test',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'content' => [
+                        ['type' => 'text', 'text' => $cheap],
+                    ],
+                ]),
+        ]);
+
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $session = PlanSession::factory()->create([
+            'user_id' => $user->id,
+            'plan_type_id' => $this->planTypes['night_out']->id,
+            'status' => PlanSession::STATUS_SUGGESTIONS,
+            'city' => 'Austin',
+            'answers' => $this->validAnswers('night_out'),
+        ]);
+        Suggestion::factory()->create([
+            'plan_session_id' => $session->id,
+            'payload' => [
+                'name' => 'Jazz and Bites',
+                'estimated_cost_per_person' => 40,
+            ],
+        ]);
+
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/refine", [
+            'message' => 'Something cheaper',
+        ])->assertOk()
+            ->assertJsonPath('data.suggestions.0.payload.name', 'Taco walk')
+            ->assertJsonPath('data.suggestions.0.payload.estimated_cost_per_person', 18);
+
+        $names = $session->fresh()->suggestions->map(
+            fn (Suggestion $suggestion): string => (string) ($suggestion->payload['name'] ?? ''),
+        )->all();
+
+        $this->assertSame(['Taco walk'], $names);
+        $this->assertFalse(
+            $session->fresh()->suggestions->contains(
+                fn (Suggestion $suggestion): bool => (float) ($suggestion->payload['estimated_cost_per_person'] ?? 0) >= 40,
+            ),
+        );
     }
 
     public function test_failed_follow_up_keeps_the_current_ideas_and_drops_the_note(): void

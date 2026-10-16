@@ -4,6 +4,7 @@ namespace App\Services\AI;
 
 use App\Models\PlanSession;
 use App\Models\Suggestion;
+use App\Services\AI\Prompts\PlanPromptBuilder;
 use App\Services\AI\Prompts\PlanPromptBuilderResolver;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
@@ -33,6 +34,33 @@ class SuggestionService
             ],
         ]);
 
+        $payloads = $this->payloadsFrom($builder, $response);
+        $payloads = $this->withoutStaleCheaperOffers($session, $builder, $payloads);
+
+        $keepsSavedPlan = $session->itinerary()->exists();
+        $session->suggestions()->delete();
+
+        $suggestions = collect();
+
+        foreach ($payloads as $payload) {
+            $suggestions->push($session->suggestions()->create([
+                'payload' => $payload,
+            ]));
+        }
+
+        if (! $keepsSavedPlan) {
+            $session->markStatus(PlanSession::STATUS_SUGGESTIONS);
+        }
+
+        return $suggestions;
+    }
+
+    /**
+     * @param  array<string, mixed>  $response
+     * @return list<array<string, mixed>>
+     */
+    private function payloadsFrom(PlanPromptBuilder $builder, array $response): array
+    {
         if (! isset($response['suggestions']) || ! is_array($response['suggestions'])) {
             throw new InvalidArgumentException('AI response missing suggestions array.');
         }
@@ -51,21 +79,47 @@ class SuggestionService
             throw new InvalidArgumentException('No valid suggestions were generated.');
         }
 
-        $keepsSavedPlan = $session->itinerary()->exists();
-        $session->suggestions()->delete();
+        return $payloads;
+    }
 
-        $suggestions = collect();
-
-        foreach ($payloads as $payload) {
-            $suggestions->push($session->suggestions()->create([
-                'payload' => $payload,
-            ]));
+    /**
+     * A cheaper request must not come back as the same plan, or as a higher price.
+     *
+     * @param  list<array<string, mixed>>  $payloads
+     * @return list<array<string, mixed>>
+     */
+    private function withoutStaleCheaperOffers(PlanSession $session, PlanPromptBuilder $builder, array $payloads): array
+    {
+        if (! PlanConsistency::wantsCheaper($session)) {
+            return $payloads;
         }
 
-        if (! $keepsSavedPlan) {
-            $session->markStatus(PlanSession::STATUS_SUGGESTIONS);
+        $kept = PlanConsistency::cheaperThanCurrent($session, $payloads);
+
+        if ($kept !== []) {
+            return $kept;
         }
 
-        return $suggestions;
+        $reference = PlanConsistency::referenceCost($session);
+        $limit = $reference === null ? 'the current ideas' : '$'.$reference;
+        $retry = $this->client->chat([
+            [
+                'role' => 'system',
+                'content' => $builder->suggestionSystemPrompt(),
+            ],
+            [
+                'role' => 'user',
+                'content' => $builder->suggestionUserPrompt($session)
+                    ."\nThe last ideas repeated a current plan or were not cheaper. Return different plans, and set every price lower than {$limit}.",
+            ],
+        ]);
+
+        $kept = PlanConsistency::cheaperThanCurrent($session, $this->payloadsFrom($builder, $retry));
+
+        if ($kept === []) {
+            throw new InvalidArgumentException('Cheaper options repeated the current plan or cost the same or more.');
+        }
+
+        return $kept;
     }
 }

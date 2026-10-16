@@ -1,14 +1,13 @@
 @component('mail::message')
 # Choose a new password
 
-We received a request to reset the password for **{{ $email }}**. This link works once and expires in 60 minutes.
+We received a request to reset the password for **{{ $email }}**.
 
-<x-mail::button :url="$resetUrl" :color="$theme['slug']">
-Choose a new password
-</x-mail::button>
+Enter this code in the PLNR app, or on the website. It works once and expires in 60 minutes.
 
-Or copy this link into your browser:
-[{{ $resetUrl }}]({{ $resetUrl }})
+<x-mail::panel>
+<span style="font-size: 28px; letter-spacing: 6px; font-weight: 700;">{{ $code }}</span>
+</x-mail::panel>
 
 If you did not ask for this, you can ignore this email.
 @endcomponent

@@ -277,6 +277,36 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertStringContainsString('closing_time is when to be there.', $prompt);
         $this->assertStringContainsString('time is a clock time.', $builder->itinerarySystemPrompt());
         $this->assertStringContainsString('The notes include how long to stay.', $builder->itinerarySystemPrompt());
+        $this->assertStringContainsString('one days entry for every calendar day', $builder->itinerarySystemPrompt());
+    }
+
+    public function test_road_trip_days_follow_the_departure_and_arrival_dates(): void
+    {
+        $builder = new RoadTripPromptBuilder;
+        $session = new PlanSession([
+            'answers' => [
+                'departure_date' => '2026-10-08',
+                'arrival_date' => '2026-10-10',
+            ],
+        ]);
+        $content = $builder->normalizeItineraryContent([
+            'title' => 'Austin to Dallas',
+            'summary' => 'Three days on the road',
+            'stops' => [
+                ['time' => '8:00 AM', 'name' => 'Depart Austin', 'activity' => 'Start', 'notes' => ''],
+                ['time' => '12:00 PM', 'name' => 'Lunch', 'activity' => 'Eat', 'notes' => ''],
+                ['time' => '6:00 PM', 'name' => 'Hotel', 'activity' => 'Sleep', 'notes' => ''],
+                ['time' => '9:00 AM', 'name' => 'Viewpoint', 'activity' => 'Look', 'notes' => ''],
+            ],
+        ]);
+
+        $dated = $builder->applyTripDates($session, $content);
+
+        $this->assertCount(2, $dated['days']);
+        $this->assertSame('Thursday, October 8, 2026', $dated['days'][0]['date']);
+        $this->assertSame('Friday, October 9, 2026', $dated['days'][1]['date']);
+        $this->assertSame('Hotel', $dated['days'][0]['stops'][2]['name']);
+        $this->assertSame('Viewpoint', $dated['days'][1]['stops'][0]['name']);
     }
 
     public function test_resolver_returns_builder_for_session_plan_type(): void

@@ -4,6 +4,7 @@ namespace App\Services\AI\Prompts;
 
 use App\Models\PlanSession;
 use App\Models\Suggestion;
+use App\Services\AI\PlanConsistency;
 use App\Services\Events\EventContextService;
 use App\Services\Events\EventIngestionService;
 use App\Services\Events\EventSourceResolver;
@@ -30,7 +31,11 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
             return $lines;
         }
 
-        $lines[] = 'The person already has a plan. Keep the city, date, group size, and budget unless their note changes those.';
+        $wantsCheaper = (bool) preg_match('/\bcheaper\b/i', (string) end($requests));
+
+        $lines[] = $wantsCheaper
+            ? 'The person already has ideas. Keep the city, date, and group size. Replace the ideas with different plans that cost less.'
+            : 'The person already has a plan. Keep the city, date, group size, and budget unless their note changes those.';
 
         $ideaNames = [];
 
@@ -44,7 +49,25 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
         }
 
         if ($ideaNames !== []) {
-            $lines[] = 'Current ideas: '.implode('; ', $ideaNames);
+            $priced = [];
+
+            foreach ($session->suggestions as $suggestion) {
+                $payload = is_array($suggestion->payload) ? $suggestion->payload : [];
+                $name = $payload['name'] ?? $payload['title'] ?? null;
+
+                if (! is_string($name) || $name === '') {
+                    continue;
+                }
+
+                $cost = PlanConsistency::cost($payload);
+                $priced[] = $cost === null ? $name : $name.' ($'.$cost.')';
+            }
+
+            $lines[] = 'Current ideas: '.implode('; ', $priced !== [] ? $priced : $ideaNames);
+
+            if ($wantsCheaper) {
+                $lines[] = 'Something cheaper means every new idea is a different plan, and its price is lower than the current ideas.';
+            }
         }
 
         $stopNames = $this->savedPlanStopNames($session);
@@ -288,6 +311,7 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
             'Selected option: '.($payload['name'] ?? ''),
             'Description: '.($payload['description'] ?? ''),
             'Payload: '.json_encode($payload),
+            PlanConsistency::priceLine($payload),
         ]);
     }
 

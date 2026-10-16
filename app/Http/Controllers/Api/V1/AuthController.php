@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Auth\SendPasswordResetCode;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\ChangePasswordRequest;
 use App\Http\Requests\Api\V1\DeleteAccountRequest;
@@ -111,15 +112,13 @@ class AuthController extends Controller
         ], $created ? 201 : 200);
     }
 
-    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
+    public function forgotPassword(ForgotPasswordRequest $request, SendPasswordResetCode $codes): JsonResponse
     {
-        Password::sendResetLink([
-            'email' => $request->string('email')->toString(),
-        ]);
+        $codes->send($request->string('email')->toString());
 
         return response()->json([
             'data' => null,
-            'message' => 'If an account exists for that email, we sent a reset link.',
+            'message' => 'If an account exists for that email, we sent a 6-digit code.',
         ]);
     }
 
@@ -141,7 +140,7 @@ class AuthController extends Controller
 
         if ($status !== Password::PASSWORD_RESET) {
             throw ValidationException::withMessages([
-                'email' => ['This reset link is invalid or has expired.'],
+                'email' => ['This code is invalid or has expired.'],
             ]);
         }
 

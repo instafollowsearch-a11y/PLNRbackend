@@ -21,6 +21,7 @@
     {{-- Footer --}}
     <x-slot:footer>
         <x-mail::footer>
+@include('mail.partials.store-badges-text')
             © {{ date('Y') }} {{ config('app.name') }}. @lang('All rights reserved.')
         </x-mail::footer>
     </x-slot:footer>

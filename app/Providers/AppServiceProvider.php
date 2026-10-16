@@ -83,7 +83,7 @@ class AppServiceProvider extends ServiceProvider
         ResetPassword::toMailUsing(function (User $user, string $token): ResetPasswordMail {
             return new ResetPasswordMail(
                 $user->getEmailForPasswordReset(),
-                PasswordResetUrl::for($user, $token),
+                $token,
             );
         });
 

@@ -10,6 +10,7 @@ use App\Support\Geo\LocationLabel;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -25,7 +26,11 @@ class PlaceListingLookup
 
     private const SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
 
-    public function __construct(private readonly AppSettings $settings) {}
+    public function __construct(
+        private readonly AppSettings $settings,
+        private readonly OpenStreetMapOpeningHours $openStreetMapHours,
+        private readonly OpeningHoursWebCheck $openingHoursWebCheck,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $content
@@ -33,10 +38,6 @@ class PlaceListingLookup
      */
     public function enrich(array $content, ?string $city, ?AreaLimit $area = null, bool $keepCoordinates = false): array
     {
-        if ($this->settings->googleApiKey() === null) {
-            return $content;
-        }
-
         $cityName = LocationLabel::locality($city);
 
         if ($cityName === '') {
@@ -53,7 +54,7 @@ class PlaceListingLookup
                     continue;
                 }
 
-                $day['stops'] = $this->enrichStopList($day['stops'], $cityName, $area, false);
+                $day['stops'] = $this->enrichStopList($day['stops'], $cityName, $area, $keepCoordinates);
                 $content['days'][$index] = $day;
             }
         }
@@ -122,7 +123,87 @@ class PlaceListingLookup
             return $stops;
         }
 
-        return $kept;
+        return $this->fillMissingHours($kept, $city);
+    }
+
+    /**
+     * Google Places hours win. OpenStreetMap, then a similar place nearby, then a web search.
+     *
+     * @param  array<int, mixed>  $stops
+     * @return array<int, mixed>
+     */
+    private function fillMissingHours(array $stops, string $city): array
+    {
+        foreach ($stops as $index => $stop) {
+            if (! is_array($stop) || trim((string) ($stop['hours'] ?? '')) !== '') {
+                continue;
+            }
+
+            $name = trim((string) ($stop['name'] ?? ''));
+
+            if ($name === '') {
+                continue;
+            }
+
+            $activity = trim((string) ($stop['activity'] ?? ''));
+            $hours = $this->openStreetMapHours->hoursFor($name, $city)
+                ?? $this->openStreetMapHours->similarHours($name, $activity, $city);
+
+            if ($hours === null) {
+                continue;
+            }
+
+            $stop['hours'] = $hours;
+            $stops[$index] = $stop;
+        }
+
+        $stops = $this->openingHoursWebCheck->fill($stops, $city);
+
+        return $this->replicateHoursFromSimilarStops($stops);
+    }
+
+    /**
+     * When every outside lookup missed, copy hours from another stop in this plan.
+     *
+     * @param  array<int, mixed>  $stops
+     * @return array<int, mixed>
+     */
+    private function replicateHoursFromSimilarStops(array $stops): array
+    {
+        $donor = null;
+
+        foreach ($stops as $stop) {
+            if (! is_array($stop)) {
+                continue;
+            }
+
+            $hours = trim((string) ($stop['hours'] ?? ''));
+
+            if ($hours !== '') {
+                $donor = $hours;
+
+                break;
+            }
+        }
+
+        if ($donor === null) {
+            return $stops;
+        }
+
+        foreach ($stops as $index => $stop) {
+            if (! is_array($stop) || trim((string) ($stop['name'] ?? '')) === '') {
+                continue;
+            }
+
+            if (trim((string) ($stop['hours'] ?? '')) !== '') {
+                continue;
+            }
+
+            $stop['hours'] = $donor;
+            $stops[$index] = $stop;
+        }
+
+        return $stops;
     }
 
     /**
@@ -414,10 +495,17 @@ class PlaceListingLookup
      */
     private function storePhoto(string $token, string $name): void
     {
-        PlacePhoto::query()->updateOrCreate(
-            ['token' => $token],
-            ['photo_name' => $name],
-        );
+        try {
+            PlacePhoto::query()->updateOrCreate(
+                ['token' => $token],
+                ['photo_name' => $name],
+            );
+        } catch (Throwable $exception) {
+            Log::warning('place_photo.store_failed', [
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
         Cache::put(self::PHOTO_CACHE_PREFIX.$token, $name, now()->addDays(self::PHOTO_TTL_DAYS));
     }
 

@@ -4,6 +4,7 @@ namespace App\Services\AI\Prompts;
 
 use App\Models\PlanSession;
 use App\Models\Suggestion;
+use App\Services\AI\PlanConsistency;
 use InvalidArgumentException;
 
 class NightOutPromptBuilder extends AbstractPlanPromptBuilder
@@ -54,6 +55,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
             'Description: '.($payload['description'] ?? ''),
             'Time slot: '.($payload['time_slot'] ?? ''),
             'Venues: '.implode(', ', $payload['venues'] ?? []),
+            PlanConsistency::priceLine($payload),
         ]))));
     }
 

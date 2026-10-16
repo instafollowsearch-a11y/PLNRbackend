@@ -25,7 +25,7 @@ class PasswordResetTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertJsonPath('message', 'If an account exists for that email, we sent a reset link.');
+            ->assertJsonPath('message', 'If an account exists for that email, we sent a 6-digit code.');
 
         Notification::assertNothingSent();
         $this->assertDatabaseCount('password_reset_tokens', 0);
@@ -46,7 +46,7 @@ class PasswordResetTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertJsonPath('message', 'If an account exists for that email, we sent a reset link.');
+            ->assertJsonPath('message', 'If an account exists for that email, we sent a 6-digit code.');
 
         $token = null;
 
@@ -58,11 +58,11 @@ class PasswordResetTest extends TestCase
                 return false;
             }
 
-            $url = $mail->resetUrl;
+            $html = $mail->render();
 
-            return str_contains($url, '/reset-password?')
-                && str_contains($url, 'token=')
-                && str_contains($url, 'email=user%40plnr.test')
+            return preg_match('/^\d{6}$/', $mail->code) === 1
+                && str_contains($html, $mail->code)
+                && ! str_contains($html, '/reset-password?')
                 && str_contains($mail->envelope()->subject, 'Reset your password · ');
         });
 
@@ -71,6 +71,7 @@ class PasswordResetTest extends TestCase
         $stored = DB::table('password_reset_tokens')->where('email', 'user@plnr.test')->value('token');
 
         $this->assertIsString($token);
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $token);
         $this->assertIsString($stored);
         $this->assertNotSame($token, $stored);
         $this->assertTrue(Hash::check($token, $stored));

@@ -335,7 +335,13 @@ class PlanSessionController extends Controller
             ], 422);
         }
 
-        if ($planSession->itinerary()->exists() && $planSession->generation_status !== PlanSession::GENERATION_ITINERARY) {
+        $saved = $planSession->itinerary;
+
+        if (
+            $saved !== null
+            && (int) $saved->suggestion_id === $selected->id
+            && $planSession->generation_status !== PlanSession::GENERATION_ITINERARY
+        ) {
             $planSession->load(['planType', 'suggestions', 'itinerary']);
 
             return response()->json([

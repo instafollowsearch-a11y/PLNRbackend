@@ -13,6 +13,7 @@ class Itinerary extends Model
 
     protected $fillable = [
         'plan_session_id',
+        'suggestion_id',
         'content',
         'email_sent_at',
     ];

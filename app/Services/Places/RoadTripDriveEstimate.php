@@ -27,14 +27,21 @@ class RoadTripDriveEstimate
      */
     public function apply(array $content, ?string $carType): array
     {
-        $stops = $content['stops'] ?? null;
+        $fromDays = isset($content['days']) && is_array($content['days']) && $content['days'] !== [];
+        $stops = $fromDays ? $this->flattenDays($content['days']) : ($content['stops'] ?? null);
 
         if (! is_array($stops)) {
             return $content;
         }
 
         $totals = $this->measure($stops);
-        $content['stops'] = $this->stripCoordinates($stops);
+        $stops = $this->stripCoordinates($stops);
+
+        if ($fromDays) {
+            $content['days'] = $this->restoreDays($content['days'], $stops);
+        } else {
+            $content['stops'] = $stops;
+        }
 
         if ($totals === null) {
             return $content;
@@ -206,6 +213,50 @@ class RoadTripDriveEstimate
         $miles = $meters / 1609.344;
 
         return round($miles / $milesPerGallon * $price, 2);
+    }
+
+    /**
+     * @param  array<int, mixed>  $days
+     * @return list<mixed>
+     */
+    private function flattenDays(array $days): array
+    {
+        $stops = [];
+
+        foreach ($days as $day) {
+            if (! is_array($day) || ! is_array($day['stops'] ?? null)) {
+                continue;
+            }
+
+            foreach ($day['stops'] as $stop) {
+                $stops[] = $stop;
+            }
+        }
+
+        return $stops;
+    }
+
+    /**
+     * @param  array<int, mixed>  $days
+     * @param  list<mixed>  $stops
+     * @return list<mixed>
+     */
+    private function restoreDays(array $days, array $stops): array
+    {
+        $cursor = 0;
+
+        foreach ($days as $index => $day) {
+            if (! is_array($day) || ! is_array($day['stops'] ?? null)) {
+                continue;
+            }
+
+            $count = count($day['stops']);
+            $day['stops'] = array_slice($stops, $cursor, $count);
+            $cursor += $count;
+            $days[$index] = $day;
+        }
+
+        return $days;
     }
 
     /**

@@ -62,7 +62,7 @@ class ItineraryServiceTest extends TestCase
         $this->assertCount(3, $itinerary->content['stops']);
         $this->assertSame(PlanSession::STATUS_ITINERARY, $session->fresh()->status);
 
-        Http::assertSentCount(1);
+        $this->assertSame(1, $this->itineraryCallCount());
     }
 
     public function test_draft_is_reused_and_copied_without_another_model_call(): void
@@ -103,6 +103,13 @@ class ItineraryServiceTest extends TestCase
 
         $this->assertSame('Saturday Night Out in Austin', $itinerary->content['title']);
         $this->assertSame(PlanSession::STATUS_ITINERARY, $session->fresh()->status);
-        Http::assertSentCount(1);
+        $this->assertSame(1, $this->itineraryCallCount());
+    }
+
+    private function itineraryCallCount(): int
+    {
+        return collect(Http::recorded())
+            ->filter(fn (array $pair): bool => str_contains($pair[0]->body(), 'Create a detailed evening itinerary'))
+            ->count();
     }
 }

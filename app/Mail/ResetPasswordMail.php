@@ -18,7 +18,7 @@ class ResetPasswordMail extends Mailable
 
     public function __construct(
         public string $email,
-        public string $resetUrl,
+        public string $code,
     ) {}
 
     public function envelope(): Envelope
@@ -51,7 +51,7 @@ class ResetPasswordMail extends Mailable
             with: [
                 'theme' => PlanTypeMailTheme::brand(),
                 'email' => $this->email,
-                'resetUrl' => $this->resetUrl,
+                'code' => $this->code,
             ],
         );
     }

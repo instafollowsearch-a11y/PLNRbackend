@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\Itinerary;
 use App\Models\PlanSession;
 use App\Models\PlanType;
 use App\Models\Suggestion;
@@ -40,7 +41,10 @@ class SuggestionPlanApiTest extends TestCase
 
         $this->assertSame(PlanSession::STATUS_SUGGESTIONS, $session->fresh()->status);
         $this->assertNull($session->fresh()->itinerary);
-        Http::assertSentCount(1);
+        $itineraryCalls = collect(Http::recorded())
+            ->filter(fn (array $pair): bool => str_contains($pair[0]->body(), 'Create a detailed evening itinerary'))
+            ->count();
+        $this->assertSame(1, $itineraryCalls);
     }
 
     public function test_choosing_copies_the_draft_onto_the_session_itinerary(): void
@@ -88,6 +92,48 @@ class SuggestionPlanApiTest extends TestCase
         $this->assertSame(PlanSession::STATUS_ITINERARY, $session->fresh()->status);
         $this->assertNull($session->fresh()->generation_status);
         $this->assertSame('Jazz on 6th Street Crawl', $session->fresh()->itinerary?->content['title']);
+    }
+
+    public function test_choosing_another_idea_does_not_keep_the_previous_plan(): void
+    {
+        Http::fake();
+        [$session, $suggestion] = $this->guestSuggestion([
+            'title' => 'Budget tacos',
+            'summary' => 'A cheaper night.',
+            'stops' => [
+                ['time' => '19:00', 'name' => 'Taco Row', 'activity' => 'Dinner', 'notes' => ''],
+            ],
+        ]);
+        $previous = Suggestion::factory()->create([
+            'plan_session_id' => $session->id,
+            'selected_at' => now()->subMinute(),
+            'payload' => [
+                'name' => 'Expensive jazz',
+                'estimated_cost_per_person' => 80,
+            ],
+        ]);
+        Itinerary::factory()->create([
+            'plan_session_id' => $session->id,
+            'suggestion_id' => $previous->id,
+            'content' => [
+                'title' => 'Expensive jazz',
+                'stops' => [
+                    ['time' => '20:00', 'name' => 'Skyline Lounge', 'activity' => 'Cocktails'],
+                ],
+            ],
+        ]);
+
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/select", [
+            'suggestion_id' => $suggestion->id,
+        ])->assertOk();
+
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/itinerary")
+            ->assertOk()
+            ->assertJsonPath('data.itinerary.content.title', 'Budget tacos')
+            ->assertJsonPath('data.itinerary.content.stops.0.name', 'Taco Row');
+
+        $this->assertSame($suggestion->id, $session->fresh()->itinerary?->suggestion_id);
+        Http::assertNothingSent();
     }
 
     public function test_a_failed_draft_leaves_the_other_ideas_in_place(): void

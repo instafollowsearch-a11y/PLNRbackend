@@ -29,6 +29,7 @@ class PlaceListingLookupTest extends TestCase
         parent::setUp();
 
         $this->travelTo('2026-10-02 18:00:00');
+        config(['services.anthropic.key' => null]);
     }
 
     public function test_a_matched_listing_adds_a_photo_address_hours_and_keeps_existing_links(): void
@@ -110,7 +111,7 @@ class PlaceListingLookupTest extends TestCase
         $this->assertSame('https://maps.example.com/kept', $stops[0]['maps_url']);
         $this->assertSame('https://example.com/kept', $stops[0]['external_url']);
         $this->assertArrayNotHasKey('photo_url', $stops[1]);
-        $this->assertArrayNotHasKey('hours', $stops[1]);
+        $this->assertSame('Friday: 5 PM–12 AM', $stops[1]['hours']);
         $this->assertArrayNotHasKey('maps_url', $stops[1]);
 
         $path = parse_url($stops[0]['photo_url'], PHP_URL_PATH);
@@ -306,6 +307,7 @@ class PlaceListingLookupTest extends TestCase
                     'websiteUri' => 'https://elephantroom.com',
                 ]],
             ]),
+            'nominatim.openstreetmap.org/*' => Http::response([], 200),
         ]);
 
         $content = app(PlaceListingLookup::class)->enrich([
@@ -338,11 +340,13 @@ class PlaceListingLookupTest extends TestCase
         $withoutKey = $lookup->enrich(['stops' => [$stop]], 'Austin');
 
         $this->assertSame($stop, $withoutKey['stops'][0]);
-        Http::assertNothingSent();
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'places.googleapis.com'));
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'nominatim.openstreetmap.org'));
 
         config(['services.google.places_key' => 'test-places-key']);
         Http::fake([
             'places.googleapis.com/*' => Http::response(['places' => []], 200),
+            'nominatim.openstreetmap.org/*' => Http::response([], 200),
         ]);
 
         $missed = app(PlaceListingLookup::class)->enrich(['stops' => [$stop]], 'Austin');
@@ -415,6 +419,7 @@ class PlaceListingLookupTest extends TestCase
                     'businessStatus' => 'CLOSED_PERMANENTLY',
                 ]],
             ]),
+            'nominatim.openstreetmap.org/*' => Http::response([], 200),
         ]);
 
         $stops = [
@@ -430,6 +435,10 @@ class PlaceListingLookupTest extends TestCase
     {
         config(['services.google.places_key' => 'test-places-key']);
         Http::fake(function ($request) {
+            if (! str_contains($request->url(), 'places.googleapis.com')) {
+                return Http::response([], 200);
+            }
+
             $body = $request->body();
             $this->assertStringContainsString('locationBias', $body);
 
@@ -617,6 +626,7 @@ class PlaceListingLookupTest extends TestCase
         config(['services.google.places_key' => 'test-places-key']);
         Http::fake([
             'places.googleapis.com/*' => Http::response(['places' => []], 200),
+            'nominatim.openstreetmap.org/*' => Http::response([], 200),
         ]);
 
         $limit = AreaLimit::fromAnswers([
@@ -637,6 +647,139 @@ class PlaceListingLookupTest extends TestCase
             return str_contains($request->url(), 'searchText')
                 && ! str_contains($request->body(), 'locationBias');
         });
+    }
+
+    public function test_openstreetmap_hours_fill_a_stop_google_could_not_time(): void
+    {
+        config(['services.google.places_key' => 'test-places-key']);
+        Http::fake([
+            'places.googleapis.com/*' => Http::response(['places' => []], 200),
+            'nominatim.openstreetmap.org/*' => Http::response([
+                [
+                    'name' => 'Elephant Room',
+                    'display_name' => 'Elephant Room, Austin, Texas',
+                    'extratags' => ['opening_hours' => 'Fr 17:00-00:00'],
+                ],
+            ]),
+        ]);
+
+        $content = app(PlaceListingLookup::class)->enrich([
+            'stops' => [[
+                'time' => '8:00 PM',
+                'name' => 'Elephant Room',
+                'activity' => 'Live jazz',
+                'notes' => '',
+            ]],
+        ], 'Austin');
+
+        $this->assertSame('Friday: 5 PM–12 AM', $content['stops'][0]['hours']);
+    }
+
+    public function test_claude_web_check_fills_hours_when_the_maps_do_not(): void
+    {
+        config([
+            'services.google.places_key' => null,
+            'services.anthropic.key' => 'test-anthropic-key',
+        ]);
+        Http::fake([
+            'nominatim.openstreetmap.org/*' => Http::response([
+                [
+                    'name' => 'Quiet Bar',
+                    'display_name' => 'Quiet Bar, Austin, Texas',
+                ],
+            ]),
+        ]);
+        $this->app->instance(AiChatClient::class, new class implements AiChatClient
+        {
+            public function chat(array $messages, bool $jsonMode = true, ?int $maxTokens = null, array $options = []): array
+            {
+                if (($options['web_search'] ?? false) !== true) {
+                    return [];
+                }
+
+                return [
+                    'places' => [
+                        ['name' => 'Quiet Bar', 'hours' => 'Friday: 6 PM–2 AM'],
+                    ],
+                ];
+            }
+        });
+
+        $content = app(PlaceListingLookup::class)->enrich([
+            'stops' => [[
+                'time' => '9:00 PM',
+                'name' => 'Quiet Bar',
+                'activity' => 'A drink',
+                'notes' => '',
+            ]],
+        ], 'Austin');
+
+        $this->assertSame('Friday: 6 PM–2 AM', $content['stops'][0]['hours']);
+        $this->assertSame('9:00 PM', $content['stops'][0]['time']);
+    }
+
+    public function test_a_stop_with_no_hours_copies_a_similar_place_in_the_city(): void
+    {
+        config(['services.google.places_key' => 'test-places-key']);
+        Http::fake(function ($request) {
+            $query = (string) ($request['q'] ?? '');
+
+            if (str_contains($query, 'Elephant Room')) {
+                return Http::response([
+                    [
+                        'name' => 'Elephant Room',
+                        'display_name' => 'Elephant Room, Austin, Texas',
+                    ],
+                ]);
+            }
+
+            return Http::response([
+                [
+                    'name' => 'Other Jazz Bar',
+                    'display_name' => 'Other Jazz Bar, Austin, Texas',
+                    'extratags' => ['opening_hours' => 'Fr 18:00-02:00'],
+                ],
+            ]);
+        });
+
+        $content = app(PlaceListingLookup::class)->enrich([
+            'stops' => [[
+                'time' => '8:00 PM',
+                'name' => 'Elephant Room',
+                'activity' => 'Live jazz',
+                'notes' => '',
+            ]],
+        ], 'Austin');
+
+        $this->assertSame('Friday: 6 PM–2 AM', $content['stops'][0]['hours']);
+    }
+
+    public function test_a_stop_with_no_listing_reuses_hours_from_another_stop(): void
+    {
+        config(['services.google.places_key' => null]);
+        Http::fake([
+            'nominatim.openstreetmap.org/*' => Http::response([], 200),
+        ]);
+
+        $content = app(PlaceListingLookup::class)->enrich([
+            'stops' => [
+                [
+                    'time' => '8:00 PM',
+                    'name' => 'Elephant Room',
+                    'activity' => 'Live jazz',
+                    'notes' => '',
+                    'hours' => 'Friday: 5 PM–12 AM',
+                ],
+                [
+                    'time' => '10:00 PM',
+                    'name' => 'Missing Place',
+                    'activity' => 'A walk',
+                    'notes' => '',
+                ],
+            ],
+        ], 'Austin');
+
+        $this->assertSame('Friday: 5 PM–12 AM', $content['stops'][1]['hours']);
     }
 
     public function test_the_night_prompt_tells_the_model_to_stay_inside_the_radius(): void

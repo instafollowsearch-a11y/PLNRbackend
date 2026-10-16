@@ -6,10 +6,12 @@ use App\Models\Itinerary;
 use App\Models\PlanSession;
 use App\Models\Suggestion;
 use App\Services\AI\Prompts\PlanPromptBuilderResolver;
+use App\Services\AI\Prompts\RoadTripPromptBuilder;
 use App\Services\AI\Prompts\VacationPromptBuilder;
 use App\Services\Places\AreaLimit;
 use App\Services\Places\PlaceListingLookup;
 use App\Services\Places\RoadTripDriveEstimate;
+use InvalidArgumentException;
 
 class ItineraryService
 {
@@ -50,6 +52,7 @@ class ItineraryService
         $session->itinerary()?->delete();
 
         $itinerary = $session->itinerary()->create([
+            'suggestion_id' => $suggestion->id,
             'content' => $content,
         ]);
 
@@ -63,6 +66,27 @@ class ItineraryService
      */
     private function writeContent(PlanSession $session, Suggestion $suggestion): array
     {
+        $places = PlanConsistency::placeNames($suggestion->payload ?? []);
+        $extra = '';
+
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $content = $this->requestContent($session, $suggestion, $extra);
+
+            if (PlanConsistency::usesPlaces($content, $places)) {
+                return $content;
+            }
+
+            $extra = "\nThe previous draft did not use the selected places. Rewrite it for these places only: ".implode(', ', $places);
+        }
+
+        throw new InvalidArgumentException('The written plan did not match the selected option.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function requestContent(PlanSession $session, Suggestion $suggestion, string $extra): array
+    {
         $builder = $this->promptBuilderResolver->resolve($session);
 
         $response = $this->client->chat([
@@ -72,13 +96,13 @@ class ItineraryService
             ],
             [
                 'role' => 'user',
-                'content' => $builder->itineraryUserPrompt($session, $suggestion),
+                'content' => $builder->itineraryUserPrompt($session, $suggestion).$extra,
             ],
         ], true, 8192);
 
         $content = $builder->normalizeItineraryContent($response);
 
-        if ($builder instanceof VacationPromptBuilder) {
+        if ($builder instanceof VacationPromptBuilder || $builder instanceof RoadTripPromptBuilder) {
             $content = $builder->applyTripDates($session, $content);
         }
 
