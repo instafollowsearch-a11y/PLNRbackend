@@ -13,7 +13,7 @@ class DateNightAnswerRules
 
         return [
             'answers.self_gender' => $genderRule,
-            'answers.partner_gender' => $genderRule,
+            'answers.partner_gender' => ['required', 'string', 'in:man,woman,prefer_not_to_answer,solo'],
             'answers.city' => ['required', 'string', 'max:255'],
             'answers.timeframe' => ['required', 'string', 'max:255'],
             'answers.partner_interests' => ['required', 'string', 'min:3'],

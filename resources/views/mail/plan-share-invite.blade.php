@@ -22,15 +22,7 @@ View the plans shared with you
 
 View on the app for an enhanced experience: [{{ $urls['app'] }}]({{ $urls['app'] }})
 
-@if ($appStoreUrl || $playStoreUrl)
-Don’t have the app yet?
-@if ($appStoreUrl)
-[App Store]({{ $appStoreUrl }})
-@endif
-@if ($playStoreUrl)
-[Google Play]({{ $playStoreUrl }})
-@endif
-@endif
-
 Enjoy your plans.
+
+@include('mail.partials.store-badges')
 @endcomponent

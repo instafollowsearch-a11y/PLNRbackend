@@ -18,4 +18,6 @@ View the plans shared with you
 @endif
 
 Enjoy your plans.
+
+@include('mail.partials.store-badges')
 @endcomponent

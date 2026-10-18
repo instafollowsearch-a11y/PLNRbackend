@@ -398,6 +398,7 @@ class PlanSessionApiTest extends TestCase
         $this->assertStringContainsString('different plans that cost less', $firstPrompt);
         $this->assertStringContainsString('Something cheaper', $secondPrompt);
         $this->assertStringContainsString('More low-key', $secondPrompt);
+        $this->assertStringContainsString('quieter, more low-key plan', $secondPrompt);
         $this->assertStringContainsString('Elephant Room', $secondPrompt);
     }
 

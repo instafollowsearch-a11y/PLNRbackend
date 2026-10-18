@@ -801,6 +801,50 @@ class PlaceListingLookupTest extends TestCase
         $this->assertStringNotContainsString('Stay within', $builder->suggestionUserPrompt($open));
     }
 
+    public function test_a_web_search_photo_is_kept_and_a_private_address_is_ignored(): void
+    {
+        config([
+            'services.google.places_key' => null,
+            'services.anthropic.key' => 'test-anthropic-key',
+        ]);
+        $jpeg = "\xFF\xD8\xFF".str_repeat('a', 240);
+        Http::fake([
+            'example.com/*' => Http::response($jpeg, 200, ['Content-Type' => 'image/jpeg']),
+        ]);
+        $this->app->instance(AiChatClient::class, new class implements AiChatClient
+        {
+            public function chat(array $messages, bool $jsonMode = true, ?int $maxTokens = null, array $options = []): array
+            {
+                if (($options['web_search'] ?? false) !== true) {
+                    return [];
+                }
+
+                return [
+                    'places' => [
+                        ['name' => 'Quiet Bar', 'image_url' => 'https://example.com/quiet-bar.jpg'],
+                        ['name' => 'Open Field', 'image_url' => 'http://127.0.0.1/secret.jpg'],
+                    ],
+                ];
+            }
+        });
+
+        $content = app(PlaceListingLookup::class)->enrich([
+            'stops' => [
+                ['time' => '9:00 PM', 'name' => 'Quiet Bar', 'activity' => 'A drink', 'notes' => ''],
+                ['time' => '10:00 PM', 'name' => 'Open Field', 'activity' => 'Stars', 'notes' => ''],
+            ],
+        ], 'Austin');
+
+        $this->assertStringContainsString('/api/v1/place-photos/', $content['stops'][0]['photo_url']);
+        $this->assertArrayNotHasKey('photo_url', $content['stops'][1]);
+
+        $path = parse_url($content['stops'][0]['photo_url'], PHP_URL_PATH);
+        $this->get($path)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '127.0.0.1'));
+    }
+
     /**
      * @param  array<string, mixed>  $answers
      */

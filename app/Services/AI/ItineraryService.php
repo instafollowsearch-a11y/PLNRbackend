@@ -9,9 +9,10 @@ use App\Services\AI\Prompts\PlanPromptBuilderResolver;
 use App\Services\AI\Prompts\RoadTripPromptBuilder;
 use App\Services\AI\Prompts\VacationPromptBuilder;
 use App\Services\Places\AreaLimit;
+use App\Services\Places\LookupPin;
 use App\Services\Places\PlaceListingLookup;
 use App\Services\Places\RoadTripDriveEstimate;
-use InvalidArgumentException;
+use App\Support\Geo\CoordinateTimeZone;
 
 class ItineraryService
 {
@@ -20,6 +21,7 @@ class ItineraryService
         private readonly PlanPromptBuilderResolver $promptBuilderResolver,
         private readonly PlaceListingLookup $placeListingLookup,
         private readonly RoadTripDriveEstimate $roadTripDriveEstimate,
+        private readonly CoordinateTimeZone $timeZones,
     ) {}
 
     public function draft(PlanSession $session, Suggestion $suggestion): Suggestion
@@ -28,7 +30,9 @@ class ItineraryService
             return $suggestion;
         }
 
-        $content = $this->writeContent($session, $suggestion);
+        $pin = new LookupPin;
+        $content = $this->writeContent($session, $suggestion, $pin);
+        $this->finishPlan($session, $content, $pin);
         $this->rememberRoadTripEstimate($suggestion, $content);
 
         $suggestion->update([
@@ -41,13 +45,17 @@ class ItineraryService
 
     public function generate(PlanSession $session, Suggestion $suggestion): Itinerary
     {
+        $pin = new LookupPin;
+
         if ($this->hasDraft($suggestion)) {
             $content = $suggestion->itinerary_content;
         } else {
-            $content = $this->writeContent($session, $suggestion);
+            $content = $this->writeContent($session, $suggestion, $pin);
             $this->rememberRoadTripEstimate($suggestion, $content);
             $suggestion->update(['payload' => $suggestion->payload]);
         }
+
+        $this->finishPlan($session, is_array($content) ? $content : [], $pin);
 
         $session->itinerary()?->delete();
 
@@ -64,28 +72,23 @@ class ItineraryService
     /**
      * @return array<string, mixed>
      */
-    private function writeContent(PlanSession $session, Suggestion $suggestion): array
+    private function writeContent(PlanSession $session, Suggestion $suggestion, LookupPin $pin): array
     {
         $places = PlanConsistency::placeNames($suggestion->payload ?? []);
-        $extra = '';
+        $slug = $this->promptBuilderResolver->resolve($session)->slug();
+        $content = $this->requestContent($session, $suggestion);
 
-        for ($attempt = 0; $attempt < 2; $attempt++) {
-            $content = $this->requestContent($session, $suggestion, $extra);
-
-            if (PlanConsistency::usesPlaces($content, $places)) {
-                return $content;
-            }
-
-            $extra = "\nThe previous draft did not use the selected places. Rewrite it for these places only: ".implode(', ', $places);
+        if (! PlanConsistency::usesPlaces($content, $places)) {
+            $content = PlanConsistency::anchorPlaces($content, $places);
         }
 
-        throw new InvalidArgumentException('The written plan did not match the selected option.');
+        return $this->withListings($session, PlanPacing::tighten($content, $slug), $pin);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function requestContent(PlanSession $session, Suggestion $suggestion, string $extra): array
+    private function requestContent(PlanSession $session, Suggestion $suggestion): array
     {
         $builder = $this->promptBuilderResolver->resolve($session);
 
@@ -96,7 +99,7 @@ class ItineraryService
             ],
             [
                 'role' => 'user',
-                'content' => $builder->itineraryUserPrompt($session, $suggestion).$extra,
+                'content' => $builder->itineraryUserPrompt($session, $suggestion),
             ],
         ], true, 8192);
 
@@ -106,12 +109,23 @@ class ItineraryService
             $content = $builder->applyTripDates($session, $content);
         }
 
+        return $content;
+    }
+
+    /**
+     * @param  array<string, mixed>  $content
+     * @return array<string, mixed>
+     */
+    private function withListings(PlanSession $session, array $content, LookupPin $pin): array
+    {
+        $builder = $this->promptBuilderResolver->resolve($session);
         $isRoadTrip = $builder->slug() === 'road_trip';
         $content = $this->placeListingLookup->enrich(
             $content,
             is_string($session->city) ? $session->city : null,
             AreaLimit::fromAnswers($session->answers ?? []),
             $isRoadTrip,
+            $pin,
         );
 
         if (! $isRoadTrip) {
@@ -124,6 +138,39 @@ class ItineraryService
             $content,
             is_string($carType) ? $carType : null,
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $content
+     */
+    private function finishPlan(PlanSession $session, array $content, LookupPin $pin): void
+    {
+        $this->rememberTimeZone($session, $pin);
+        $this->placeListingLookup->warmPhotos($content);
+    }
+
+    private function rememberTimeZone(PlanSession $session, LookupPin $pin): void
+    {
+        $answers = is_array($session->answers) ? $session->answers : [];
+
+        if (is_string($answers['timezone'] ?? null) && trim($answers['timezone']) !== '') {
+            return;
+        }
+
+        $zone = null;
+
+        if ($pin->latitude !== null && $pin->longitude !== null) {
+            $zone = $this->timeZones->find($pin->latitude, $pin->longitude);
+        } elseif (! app()->runningUnitTests()) {
+            $zone = $this->timeZones->findForCity(is_string($session->city) ? $session->city : null);
+        }
+
+        if ($zone === null) {
+            return;
+        }
+
+        $answers['timezone'] = $zone;
+        $session->update(['answers' => $answers]);
     }
 
     /**

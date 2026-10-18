@@ -49,6 +49,11 @@ class ItineraryMailTest extends TestCase
             ],
         ]);
 
+        config([
+            'services.pro.app_store_url' => 'https://apps.apple.com/app/plnr',
+            'services.pro.play_store_url' => 'https://play.google.com/store/apps/details?id=app.plnr',
+        ]);
+
         $session->load('planType');
         $html = (new ItineraryMail($session, $itinerary))->render();
         $theme = PlanTypeMailTheme::for('night_out');
@@ -61,6 +66,8 @@ class ItineraryMailTest extends TestCase
         $this->assertStringContainsString('<img', $html);
         $this->assertStringContainsString('alt="PLNR"', $html);
         $this->assertStringContainsString('width="120"', $html);
+        $this->assertStringContainsString('header-card', $html);
+        $this->assertStringContainsString('bgcolor="#ffffff"', $html);
         $this->assertStringContainsString(
             'Times are ranges, not exact times. Places and plans can be off. Double-check before you go.',
             $html,
@@ -68,6 +75,18 @@ class ItineraryMailTest extends TestCase
         $this->assertStringContainsString('Saturday Night Out in Austin', $html);
         $this->assertStringContainsString('Austin', $html);
         $this->assertStringContainsString('View your plans', $html);
+        $plansAt = strpos($html, 'Enjoy your plans.');
+        $storeAt = strpos($html, 'button-store');
+        $copyrightAt = strpos($html, 'All rights reserved.');
+        $this->assertNotFalse($plansAt);
+        $this->assertNotFalse($storeAt);
+        $this->assertNotFalse($copyrightAt);
+        $this->assertLessThan($storeAt, $plansAt);
+        $this->assertLessThan($copyrightAt, $storeAt);
+        $this->assertStringContainsString('href="https://apps.apple.com/app/plnr"', $html);
+        $this->assertStringContainsString('href="https://play.google.com/store/apps/details?id=app.plnr"', $html);
+        $this->assertStringContainsString('App Store', $html);
+        $this->assertStringContainsString('Google Play', $html);
         $this->assertStringNotContainsString('The full plan stays on PLNR.', $html);
         $this->assertStringContainsString('/plan/night_out/itinerary?session='.$session->uuid, $html);
         $this->assertStringNotContainsString('Blue Note Bar', $html);

@@ -19,6 +19,7 @@ use App\Services\AI\SuggestionService;
 use App\Services\Notifications\ExpoPushService;
 use App\Services\Plans\PlanQuotaService;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
+use App\Support\Geo\CoordinateTimeZone;
 use App\Support\Http\RunAfterResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -69,13 +70,15 @@ class PlanSessionController extends Controller
 
         $planType = PlanType::query()->where('slug', $request->string('plan_type'))->firstOrFail();
 
+        $answers = $request->input('answers');
+
         $session = PlanSession::query()->create([
             'user_id' => $request->user()?->id,
             'creator_ip' => $request->ip(),
             'plan_type_id' => $planType->id,
             'status' => PlanSession::STATUS_READY,
             'city' => $request->resolvedCity(),
-            'answers' => $request->input('answers'),
+            'answers' => is_array($answers) ? app(CoordinateTimeZone::class)->applyToAnswers($answers) : $answers,
         ]);
 
         $session->load('planType');

@@ -40,4 +40,6 @@ Nothing listed.
 @endif
 
 Enjoy your plans.
+
+@include('mail.partials.store-badges')
 @endcomponent

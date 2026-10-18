@@ -8,9 +8,12 @@ use App\Models\Suggestion;
 use App\Services\Settings\AppSettings;
 use App\Support\Geo\LocationLabel;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -30,13 +33,14 @@ class PlaceListingLookup
         private readonly AppSettings $settings,
         private readonly OpenStreetMapOpeningHours $openStreetMapHours,
         private readonly OpeningHoursWebCheck $openingHoursWebCheck,
+        private readonly VenuePhotoWebCheck $venuePhotoWebCheck,
     ) {}
 
     /**
      * @param  array<string, mixed>  $content
      * @return array<string, mixed>
      */
-    public function enrich(array $content, ?string $city, ?AreaLimit $area = null, bool $keepCoordinates = false): array
+    public function enrich(array $content, ?string $city, ?AreaLimit $area = null, bool $keepCoordinates = false, ?LookupPin $pin = null): array
     {
         $cityName = LocationLabel::locality($city);
 
@@ -45,7 +49,7 @@ class PlaceListingLookup
         }
 
         if (isset($content['stops']) && is_array($content['stops'])) {
-            $content['stops'] = $this->enrichStopList($content['stops'], $cityName, $area, $keepCoordinates);
+            $content['stops'] = $this->enrichStopList($content['stops'], $cityName, $area, $keepCoordinates, $pin);
         }
 
         if (isset($content['days']) && is_array($content['days'])) {
@@ -54,8 +58,377 @@ class PlaceListingLookup
                     continue;
                 }
 
-                $day['stops'] = $this->enrichStopList($day['stops'], $cityName, $area, $keepCoordinates);
+                $day['stops'] = $this->enrichStopList($day['stops'], $cityName, $area, $keepCoordinates, $pin);
                 $content['days'][$index] = $day;
+            }
+        }
+
+        return $this->fillVenuePhotos($content, $cityName);
+    }
+
+    /**
+     * Download listing photos while the plan is still being written, so the first view is a local file.
+     *
+     * @param  array<string, mixed>  $content
+     */
+    public function warmPhotos(array $content): void
+    {
+        $key = $this->settings->googleApiKey();
+
+        if ($key === null) {
+            return;
+        }
+
+        $jobs = [];
+
+        foreach ($this->photoTokens($content) as $token) {
+            if ($this->storedImage($token) !== null) {
+                continue;
+            }
+
+            $name = $this->photoName($token);
+
+            if ($name === null) {
+                continue;
+            }
+
+            $jobs[$token] = $name;
+        }
+
+        if ($jobs === []) {
+            return;
+        }
+
+        try {
+            $responses = Http::pool(function (Pool $pool) use ($jobs, $key): void {
+                foreach ($jobs as $token => $name) {
+                    $pool->as($token)
+                        ->withHeaders([
+                            'X-Goog-Api-Key' => $key,
+                            'Accept' => 'image/*',
+                        ])
+                        ->timeout(8)
+                        ->get('https://places.googleapis.com/v1/'.$name.'/media', [
+                            'maxWidthPx' => 800,
+                        ]);
+                }
+            });
+        } catch (Throwable) {
+            return;
+        }
+
+        foreach ($jobs as $token => $name) {
+            $response = $responses[$token] ?? null;
+
+            if ($response instanceof Response) {
+                $this->storeImageResponse($token, $response);
+            }
+        }
+    }
+
+    /**
+     * @return array{body: string, type: string}|null
+     */
+    public function storedImage(string $token): ?array
+    {
+        if (preg_match('/\A[A-Za-z0-9]{8,64}\z/', $token) !== 1) {
+            return null;
+        }
+
+        $path = 'place-photos/'.$token;
+
+        if (! Storage::disk('local')->exists($path)) {
+            return null;
+        }
+
+        $body = Storage::disk('local')->get($path);
+        $type = Storage::disk('local')->get($path.'.type');
+
+        if (! is_string($body) || $body === '' || ! is_string($type) || ! str_starts_with($type, 'image/')) {
+            return null;
+        }
+
+        return [
+            'body' => $body,
+            'type' => $type,
+        ];
+    }
+
+    public function storeImage(string $token, string $body, string $type): void
+    {
+        if (preg_match('/\A[A-Za-z0-9]{8,64}\z/', $token) !== 1 || $body === '' || ! str_starts_with($type, 'image/')) {
+            return;
+        }
+
+        Storage::disk('local')->put('place-photos/'.$token, $body);
+        Storage::disk('local')->put('place-photos/'.$token.'.type', $type);
+    }
+
+    /**
+     * Google Places photos are already attached. Claude web search covers the stops that still have none.
+     *
+     * @param  array<string, mixed>  $content
+     * @return array<string, mixed>
+     */
+    private function fillVenuePhotos(array $content, string $city): array
+    {
+        $names = [];
+        $this->walkStops($content, function (array $stop) use (&$names): void {
+            $name = trim((string) ($stop['name'] ?? ''));
+
+            if ($name !== '' && trim((string) ($stop['photo_url'] ?? '')) === '') {
+                $names[] = $name;
+            }
+        });
+        $names = array_slice(array_values(array_unique($names)), 0, 8);
+
+        if ($names === []) {
+            return $content;
+        }
+
+        $saved = $this->storeFoundImages($this->venuePhotoWebCheck->imageUrls($names, $city));
+
+        if ($saved === []) {
+            return $content;
+        }
+
+        return $this->walkStops($content, function (array $stop) use ($saved): array {
+            $name = strtolower(trim((string) ($stop['name'] ?? '')));
+
+            if ($name === '' || trim((string) ($stop['photo_url'] ?? '')) !== '' || ! isset($saved[$name])) {
+                return $stop;
+            }
+
+            $stop['photo_url'] = $saved[$name];
+
+            return $stop;
+        });
+    }
+
+    /**
+     * @param  array<string, string>  $urls
+     * @return array<string, string> lowercase place name => local photo URL
+     */
+    private function storeFoundImages(array $urls): array
+    {
+        $pending = [];
+
+        foreach ($urls as $name => $url) {
+            if (! is_string($name) || ! is_string($url) || ! $this->isPublicImageUrl($url)) {
+                continue;
+            }
+
+            $pending[] = ['name' => $name, 'url' => $url];
+        }
+
+        if ($pending === []) {
+            return [];
+        }
+
+        $responses = $this->fetchImages($pending);
+        $saved = [];
+
+        foreach ($pending as $index => $item) {
+            $response = $responses[(string) $index] ?? $responses[$index] ?? null;
+
+            if (! $response instanceof Response) {
+                continue;
+            }
+
+            if (in_array($response->status(), [301, 302, 303, 307, 308], true)) {
+                $next = $response->header('Location');
+                $next = is_array($next) ? ($next[0] ?? '') : $next;
+                $next = $this->absoluteUrl($item['url'], trim((string) $next));
+                $followed = $next !== null && $this->isPublicImageUrl($next)
+                    ? $this->fetchImages([['name' => $item['name'], 'url' => $next]])
+                    : [];
+                $response = $followed['0'] ?? $followed[0] ?? null;
+            }
+
+            if (! $response instanceof Response) {
+                continue;
+            }
+
+            $image = $this->imageFromResponse($response);
+
+            if ($image === null) {
+                continue;
+            }
+
+            $token = Str::random(32);
+            $this->storeImage($token, $image['body'], $image['type']);
+            $saved[$item['name']] = url('/api/v1/place-photos/'.$token);
+        }
+
+        return $saved;
+    }
+
+    /**
+     * @param  list<array{name: string, url: string}>  $urls
+     * @return array<int|string, Response|ConnectionException>
+     */
+    private function fetchImages(array $urls): array
+    {
+        try {
+            return Http::pool(function (Pool $pool) use ($urls): void {
+                foreach ($urls as $index => $item) {
+                    $pool->as((string) $index)
+                        ->withHeaders([
+                            'Accept' => 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+                            'User-Agent' => 'PLNR/1.0',
+                        ])
+                        ->withOptions(['allow_redirects' => false])
+                        ->timeout(6)
+                        ->get($item['url']);
+                }
+            });
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * @return array{body: string, type: string}|null
+     */
+    private function imageFromResponse(Response $response): ?array
+    {
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $body = $response->body();
+        $type = $this->imageType($body);
+
+        if ($type === null || strlen($body) < 200 || strlen($body) > 4_000_000) {
+            return null;
+        }
+
+        return [
+            'body' => $body,
+            'type' => $type,
+        ];
+    }
+
+    private function imageType(string $body): ?string
+    {
+        if (str_starts_with($body, "\xFF\xD8\xFF")) {
+            return 'image/jpeg';
+        }
+
+        if (str_starts_with($body, "\x89PNG\r\n\x1a\n")) {
+            return 'image/png';
+        }
+
+        if (str_starts_with($body, 'GIF87a') || str_starts_with($body, 'GIF89a')) {
+            return 'image/gif';
+        }
+
+        if (strlen($body) >= 12 && str_starts_with($body, 'RIFF') && substr($body, 8, 4) === 'WEBP') {
+            return 'image/webp';
+        }
+
+        return null;
+    }
+
+    private function isPublicImageUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+
+        if (! is_array($parts) || ($parts['scheme'] ?? '') !== 'https') {
+            return false;
+        }
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+
+        if ($host === '' || $host === 'localhost' || str_ends_with($host, '.localhost') || str_ends_with($host, '.local') || str_ends_with($host, '.internal')) {
+            return false;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return $this->isPublicIp($host);
+        }
+
+        $records = @gethostbynamel($host);
+
+        if (! is_array($records) || $records === []) {
+            return false;
+        }
+
+        foreach ($records as $ip) {
+            if (! $this->isPublicIp($ip)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isPublicIp(string $ip): bool
+    {
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+    }
+
+    private function absoluteUrl(string $current, string $location): ?string
+    {
+        if ($location === '') {
+            return null;
+        }
+
+        if (str_starts_with($location, 'https://')) {
+            return $location;
+        }
+
+        $parts = parse_url($current);
+
+        if (! is_array($parts) || ! isset($parts['host'])) {
+            return null;
+        }
+
+        if (str_starts_with($location, '/')) {
+            return 'https://'.$parts['host'].$location;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $content
+     * @param  callable(array<string, mixed>): (array<string, mixed>|void)  $callback
+     * @return array<string, mixed>
+     */
+    private function walkStops(array $content, callable $callback): array
+    {
+        if (isset($content['stops']) && is_array($content['stops'])) {
+            foreach ($content['stops'] as $index => $stop) {
+                if (! is_array($stop)) {
+                    continue;
+                }
+
+                $next = $callback($stop);
+
+                if (is_array($next)) {
+                    $content['stops'][$index] = $next;
+                }
+            }
+        }
+
+        if (isset($content['days']) && is_array($content['days'])) {
+            foreach ($content['days'] as $dayIndex => $day) {
+                if (! is_array($day) || ! isset($day['stops']) || ! is_array($day['stops'])) {
+                    continue;
+                }
+
+                foreach ($day['stops'] as $index => $stop) {
+                    if (! is_array($stop)) {
+                        continue;
+                    }
+
+                    $next = $callback($stop);
+
+                    if (is_array($next)) {
+                        $content['days'][$dayIndex]['stops'][$index] = $next;
+                    }
+                }
             }
         }
 
@@ -96,19 +469,26 @@ class PlaceListingLookup
      * @param  array<int, mixed>  $stops
      * @return array<int, mixed>
      */
-    private function enrichStopList(array $stops, string $city, ?AreaLimit $area, bool $keepCoordinates): array
+    private function enrichStopList(array $stops, string $city, ?AreaLimit $area, bool $keepCoordinates, ?LookupPin $pin): array
     {
+        $matches = $this->matchesFor($stops, $city, $area);
         $kept = [];
         $removed = 0;
 
-        foreach ($stops as $stop) {
+        foreach ($stops as $index => $stop) {
             if (! is_array($stop)) {
                 $kept[] = $stop;
 
                 continue;
             }
 
-            $enriched = $this->enrichStop($stop, $city, $area, $keepCoordinates);
+            $match = $matches[$index] ?? null;
+
+            if (is_array($match)) {
+                $pin?->note($match['latitude'], $match['longitude']);
+            }
+
+            $enriched = $this->applyMatch($stop, $match, $area, $keepCoordinates);
 
             if ($enriched === null) {
                 $removed++;
@@ -210,16 +590,13 @@ class PlaceListingLookup
      * @param  array<string, mixed>  $stop
      * @return array<string, mixed>|null
      */
-    private function enrichStop(array $stop, string $city, ?AreaLimit $area, bool $keepCoordinates): ?array
+    /**
+     * @param  array<string, mixed>  $stop
+     * @param  array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null  $match
+     * @return array<string, mixed>|null
+     */
+    private function applyMatch(array $stop, ?array $match, ?AreaLimit $area, bool $keepCoordinates): ?array
     {
-        $name = trim((string) ($stop['name'] ?? ''));
-
-        if ($name === '') {
-            return $stop;
-        }
-
-        $match = $this->match($name, $city, $area);
-
         if ($match === null) {
             return $stop;
         }
@@ -247,31 +624,106 @@ class PlaceListingLookup
     }
 
     /**
-     * @return array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null
+     * @param  array<int, mixed>  $stops
+     * @return array<int, array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null>
      */
-    private function match(string $name, string $city, ?AreaLimit $area): ?array
+    private function matchesFor(array $stops, string $city, ?AreaLimit $area): array
+    {
+        $matches = [];
+        $pending = [];
+
+        foreach ($stops as $index => $stop) {
+            if (! is_array($stop)) {
+                continue;
+            }
+
+            $name = trim((string) ($stop['name'] ?? ''));
+
+            if ($name === '') {
+                continue;
+            }
+
+            $recalled = $this->recall($name, $city, $area);
+
+            if ($recalled['fetch'] === true) {
+                $pending[$index] = $recalled;
+
+                continue;
+            }
+
+            $matches[$index] = $recalled['match'];
+        }
+
+        if ($pending === [] || $this->settings->googleApiKey() === null) {
+            return $matches;
+        }
+
+        try {
+            $responses = Http::pool(function (Pool $pool) use ($pending): void {
+                $key = $this->settings->googleApiKey();
+
+                foreach ($pending as $index => $item) {
+                    $pool->as((string) $index)
+                        ->withHeaders([
+                            'X-Goog-Api-Key' => $key,
+                            'X-Goog-FieldMask' => 'places.displayName,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri,places.businessStatus,places.formattedAddress,places.location',
+                        ])
+                        ->timeout(8)
+                        ->post(self::SEARCH_URL, $item['body']);
+                }
+            });
+        } catch (Throwable) {
+            return $matches;
+        }
+
+        foreach ($pending as $index => $item) {
+            $response = $responses[(string) $index] ?? null;
+            $matches[$index] = $response instanceof Response
+                ? $this->matchFromResponse($response, $item['cacheKey'])
+                : null;
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @return array{fetch: bool, match: array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null, cacheKey?: string, body?: array<string, mixed>}
+     */
+    private function recall(string $name, string $city, ?AreaLimit $area): array
     {
         $cacheKey = self::MATCH_CACHE_PREFIX.sha1($this->cacheSubject($name, $city, $area));
         $cached = Cache::get($cacheKey);
 
         if ($cached === false) {
-            return null;
+            return ['fetch' => false, 'match' => null];
         }
 
         if (is_array($cached)) {
             $this->rememberPhoto($cached);
 
-            return $this->normalizeCachedMatch($cached);
+            return ['fetch' => false, 'match' => $this->normalizeCachedMatch($cached)];
         }
 
-        $key = $this->settings->googleApiKey();
-
-        if ($key === null) {
-            return null;
+        if ($this->settings->googleApiKey() === null) {
+            return ['fetch' => false, 'match' => null];
         }
 
+        return [
+            'fetch' => true,
+            'match' => null,
+            'cacheKey' => $cacheKey,
+            'body' => $this->searchBody($name, $city, $area),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function searchBody(string $name, string $city, ?AreaLimit $area): array
+    {
+        $cleaned = trim((string) preg_replace('/\s+[–—-]\s+.+$/u', '', $name));
         $body = [
-            'textQuery' => $name.', '.$city,
+            'textQuery' => ($cleaned !== '' ? $cleaned : $name).', '.$city,
             'pageSize' => 1,
         ];
 
@@ -287,15 +739,14 @@ class PlaceListingLookup
             ];
         }
 
-        try {
-            $response = Http::withHeaders([
-                'X-Goog-Api-Key' => $key,
-                'X-Goog-FieldMask' => 'places.displayName,places.photos,places.regularOpeningHours,places.websiteUri,places.googleMapsUri,places.businessStatus,places.formattedAddress,places.location',
-            ])->timeout(8)->post(self::SEARCH_URL, $body);
-        } catch (ConnectionException|Throwable) {
-            return null;
-        }
+        return $body;
+    }
 
+    /**
+     * @return array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null
+     */
+    private function matchFromResponse(Response $response, string $cacheKey): ?array
+    {
         if (! $response->successful()) {
             return null;
         }
@@ -363,7 +814,61 @@ class PlaceListingLookup
             return null;
         }
 
-        return url('/api/v1/place-photos/'.bin2hex($name));
+        $token = $match['photo_token'] ?? null;
+
+        if (! is_string($token) || preg_match('/\A[A-Za-z0-9]+\z/', $token) !== 1) {
+            $token = bin2hex($name);
+        }
+
+        return url('/api/v1/place-photos/'.$token);
+    }
+
+    /**
+     * @param  array<string, mixed>  $content
+     * @return list<string>
+     */
+    private function photoTokens(array $content): array
+    {
+        $tokens = [];
+
+        $collect = function (mixed $stops) use (&$tokens): void {
+            if (! is_array($stops)) {
+                return;
+            }
+
+            foreach ($stops as $stop) {
+                if (! is_array($stop) || ! is_string($stop['photo_url'] ?? null)) {
+                    continue;
+                }
+
+                if (preg_match('#/place-photos/([A-Za-z0-9]+)\z#', $stop['photo_url'], $match) === 1) {
+                    $tokens[] = $match[1];
+                }
+            }
+        };
+
+        $collect($content['stops'] ?? null);
+
+        foreach ($content['days'] ?? [] as $day) {
+            if (is_array($day)) {
+                $collect($day['stops'] ?? null);
+            }
+        }
+
+        return array_values(array_unique($tokens));
+    }
+
+    private function storeImageResponse(string $token, Response $response): void
+    {
+        $header = $response->header('Content-Type');
+        $header = is_array($header) ? ($header[0] ?? '') : $header;
+        $type = strtolower(trim(explode(';', (string) $header)[0]));
+
+        if (! $response->successful() || ! str_starts_with($type, 'image/')) {
+            return;
+        }
+
+        $this->storeImage($token, $response->body(), $type);
     }
 
     private function embeddedPhotoName(string $token): ?string

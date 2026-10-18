@@ -16,4 +16,6 @@ City: **{{ $city }}**
 This is the nudge before this stop on your weekend picks.
 
 Enjoy your plans.
+
+@include('mail.partials.store-badges')
 @endcomponent

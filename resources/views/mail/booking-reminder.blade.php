@@ -14,4 +14,6 @@ This is a reminder for your upcoming plan.
 </x-mail::panel>
 
 Enjoy your plans.
+
+@include('mail.partials.store-badges')
 @endcomponent

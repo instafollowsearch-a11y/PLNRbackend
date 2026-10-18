@@ -36,7 +36,7 @@ class NightOutPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return 'You are a nightlife itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), stops (array of 3-6 objects with time, name, activity, notes under 25 words, and optional venue_url / maps_url https links when known). Keep the full response under 2500 tokens.';
+        return 'You are a nightlife itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), stops (array of 3-6 objects with time, name, activity, notes under 25 words, and optional venue_url / maps_url https links when known). Keep every stop in the same neighborhood. Travel from one stop to the next is about 10 to 20 minutes, and the next stop starts 45 to 90 minutes after the previous one. Do not leave a two-hour drive between outings. Keep the full response under 2500 tokens.';
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string

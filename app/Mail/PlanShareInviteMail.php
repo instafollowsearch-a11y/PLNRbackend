@@ -3,7 +3,6 @@
 namespace App\Mail;
 
 use App\Models\PlanShare;
-use App\Services\Settings\AppSettings;
 use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;
@@ -49,7 +48,6 @@ class PlanShareInviteMail extends Mailable
     {
         $slug = $this->share->planSession?->planType?->slug;
         $theme = PlanTypeMailTheme::for($slug ?? 'share');
-        $settings = app(AppSettings::class);
 
         return new Content(
             markdown: 'mail.plan-share-invite',
@@ -57,8 +55,6 @@ class PlanShareInviteMail extends Mailable
                 'theme' => $theme,
                 'share' => $this->share,
                 'urls' => $this->urls,
-                'appStoreUrl' => $settings->appStoreUrl(),
-                'playStoreUrl' => $settings->playStoreUrl(),
             ],
         );
     }

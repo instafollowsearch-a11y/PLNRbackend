@@ -10,4 +10,6 @@ Enter this code in the PLNR app, or on the website. It works once and expires in
 </x-mail::panel>
 
 If you did not ask for this, you can ignore this email.
+
+@include('mail.partials.store-badges')
 @endcomponent

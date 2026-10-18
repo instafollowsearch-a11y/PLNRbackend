@@ -49,11 +49,6 @@ width: 100% !important;
 </td>
 </tr>
 
-<tr>
-<td align="center">
-@include('mail.partials.store-badges')
-</td>
-</tr>
 {!! $footer ?? '' !!}
 </table>
 </td>

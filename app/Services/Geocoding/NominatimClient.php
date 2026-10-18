@@ -10,7 +10,7 @@ class NominatimClient
     /**
      * @return list<array{label: string, lat: float, lon: float}>
      */
-    public function search(string $query): array
+    public function search(string $query, int $timeout = 8): array
     {
         $trimmed = trim($query);
 
@@ -24,7 +24,7 @@ class NominatimClient
             'limit' => 6,
             'addressdetails' => 1,
             'accept-language' => 'en',
-        ]);
+        ], $timeout);
 
         if (! is_array($payload)) {
             return [];
@@ -81,14 +81,14 @@ class NominatimClient
      * @param  array<string, mixed>  $query
      * @return array<mixed>|null
      */
-    private function get(string $path, array $query): ?array
+    private function get(string $path, array $query, int $timeout = 8): ?array
     {
         try {
             $response = Http::acceptJson()
                 ->withHeaders([
                     'User-Agent' => (string) config('services.nominatim.user_agent'),
                 ])
-                ->timeout(8)
+                ->timeout($timeout)
                 ->get(rtrim((string) config('services.nominatim.url'), '/').$path, $query);
         } catch (ConnectionException) {
             return null;

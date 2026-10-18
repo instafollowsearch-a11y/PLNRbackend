@@ -28,6 +28,27 @@ class PlanConsistency
     }
 
     /**
+     * The price used to judge a cheaper request. A low number does not win when the text names a higher one.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public static function askingPrice(array $payload): ?float
+    {
+        $cost = self::cost($payload);
+        $advertised = self::advertisedCost($payload);
+
+        if ($cost === null) {
+            return $advertised;
+        }
+
+        if ($advertised === null) {
+            return $cost;
+        }
+
+        return max($cost, $advertised);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return list<string>
      */
@@ -39,6 +60,18 @@ class PlanConsistency
             foreach ($payload[$key] ?? [] as $value) {
                 if (is_string($value) && trim($value) !== '') {
                     $names[] = trim($value);
+
+                    continue;
+                }
+
+                if (! is_array($value)) {
+                    continue;
+                }
+
+                $name = $value['name'] ?? null;
+
+                if (is_string($name) && trim($name) !== '') {
+                    $names[] = trim($name);
                 }
             }
         }
@@ -63,6 +96,33 @@ class PlanConsistency
         return (bool) preg_match('/\bcheaper\b/i', self::latestNote($session));
     }
 
+    public static function wantsLowKey(PlanSession $session): bool
+    {
+        return ! self::wantsCheaper($session)
+            && (bool) preg_match('/\blow[-\s]?key\b/i', self::latestNote($session));
+    }
+
+    public static function wantsDifferent(PlanSession $session): bool
+    {
+        return ! self::wantsCheaper($session)
+            && ! self::wantsLowKey($session)
+            && (bool) preg_match('/\bdifferent\b/i', self::latestNote($session));
+    }
+
+    public static function cheaperInstruction(PlanSession $session): string
+    {
+        $line = 'Something cheaper means every new idea is a different plan with different places, and its price is lower than the current plan.';
+        $cap = self::referenceCost($session);
+
+        if ($cap === null) {
+            return $line.' Do not leave the price blank or at zero.';
+        }
+
+        $amount = '$'.self::money($cap);
+
+        return $line.' Price cap: every new idea must cost less than '.$amount.'. Ignore any higher budget above. Use less expensive places. Do not repeat the current places and only lower the number.';
+    }
+
     /**
      * @param  list<array<string, mixed>>  $payloads
      * @return list<array<string, mixed>>
@@ -74,12 +134,11 @@ class PlanConsistency
         foreach ($session->suggestions as $suggestion) {
             $payload = is_array($suggestion->payload) ? $suggestion->payload : [];
             $name = self::nameKey((string) ($payload['name'] ?? $payload['title'] ?? ''));
-
-            if ($name === '') {
-                continue;
-            }
-
-            $previous[$name] = self::cost($payload);
+            $previous[] = [
+                'name' => $name,
+                'cost' => self::askingPrice($payload),
+                'places' => self::placeNames($payload),
+            ];
         }
 
         $reference = self::referenceCost($session);
@@ -91,17 +150,26 @@ class PlanConsistency
             }
 
             $name = self::nameKey((string) ($payload['name'] ?? $payload['title'] ?? ''));
-            $cost = self::cost($payload);
+            $cost = self::askingPrice($payload);
+            $places = self::placeNames($payload);
+            $matched = null;
 
-            if ($name !== '' && array_key_exists($name, $previous)) {
-                $previousCost = $previous[$name];
+            foreach ($previous as $item) {
+                $sameName = $name !== '' && $name === $item['name'];
 
-                if ($previousCost === null || $cost === null || $cost >= $previousCost) {
+                if (! $sameName && ! self::sharesPlace($places, $item['places'])) {
                     continue;
                 }
+
+                $matched = $item;
+                break;
             }
 
-            if ($reference !== null && ($cost === null || $cost >= $reference)) {
+            if ($matched !== null) {
+                continue;
+            }
+
+            if ($cost === null || $cost <= 0 || ($reference !== null && $cost >= $reference)) {
                 continue;
             }
 
@@ -152,21 +220,64 @@ class PlanConsistency
         return false;
     }
 
+    /**
+     * Keep the written night, and put the picked places on it when the draft used other names.
+     *
+     * @param  array<string, mixed>  $content
+     * @param  list<string>  $places
+     * @return array<string, mixed>
+     */
+    public static function anchorPlaces(array $content, array $places): array
+    {
+        $places = array_values(array_filter($places, fn ($place): bool => is_string($place) && trim($place) !== ''));
+
+        if ($places === [] || self::usesPlaces($content, $places)) {
+            return $content;
+        }
+
+        $index = 0;
+        $rename = function (array $stops) use (&$index, $places): array {
+            foreach ($stops as $stopIndex => $stop) {
+                if (! is_array($stop) || $index >= count($places)) {
+                    continue;
+                }
+
+                $stop['name'] = $places[$index];
+                $stops[$stopIndex] = $stop;
+                $index++;
+            }
+
+            return $stops;
+        };
+
+        if (isset($content['stops']) && is_array($content['stops'])) {
+            $content['stops'] = $rename($content['stops']);
+        }
+
+        if (isset($content['days']) && is_array($content['days'])) {
+            foreach ($content['days'] as $dayIndex => $day) {
+                if (! is_array($day) || ! isset($day['stops']) || ! is_array($day['stops'])) {
+                    continue;
+                }
+
+                $day['stops'] = $rename($day['stops']);
+                $content['days'][$dayIndex] = $day;
+            }
+        }
+
+        return $content;
+    }
+
     public static function referenceCost(PlanSession $session): ?float
     {
-        $selected = null;
         $lowest = null;
 
         foreach ($session->suggestions as $suggestion) {
             $payload = is_array($suggestion->payload) ? $suggestion->payload : [];
-            $cost = self::cost($payload);
+            $cost = self::askingPrice($payload);
 
-            if ($cost === null) {
+            if ($cost === null || $cost <= 0) {
                 continue;
-            }
-
-            if ($suggestion->selected_at !== null) {
-                $selected = $cost;
             }
 
             if ($lowest === null || $cost < $lowest) {
@@ -174,7 +285,7 @@ class PlanConsistency
             }
         }
 
-        return $selected ?? $lowest;
+        return $lowest;
     }
 
     /**
@@ -208,6 +319,44 @@ class PlanConsistency
         $key = preg_replace('/[^a-z0-9]+/', ' ', $key) ?? $key;
 
         return trim($key);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private static function advertisedCost(array $payload): ?float
+    {
+        $text = trim((string) ($payload['name'] ?? '').' '.(string) ($payload['description'] ?? ''));
+
+        if ($text === '' || ! preg_match_all('/\$\s*(\d+(?:\.\d{1,2})?)/', $text, $matches)) {
+            return null;
+        }
+
+        $highest = null;
+
+        foreach ($matches[1] as $amount) {
+            $value = (float) $amount;
+            $highest = $highest === null ? $value : max($highest, $value);
+        }
+
+        return $highest;
+    }
+
+    /**
+     * @param  list<string>  $left
+     * @param  list<string>  $right
+     */
+    private static function sharesPlace(array $left, array $right): bool
+    {
+        foreach ($left as $place) {
+            foreach ($right as $other) {
+                if (self::overlaps($place, $other)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static function overlaps(string $place, string $stop): bool

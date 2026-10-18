@@ -1,5 +1,5 @@
 @props([
-    'url',
+    'url' => null,
     'color' => 'primary',
     'align' => 'center',
 ])
@@ -12,7 +12,11 @@
 <table border="0" cellpadding="0" cellspacing="0" role="presentation">
 <tr>
 <td>
+@if (is_string($url) && $url !== '')
 <a href="{{ $url }}" class="button button-{{ $color }}" target="_blank" rel="noopener">{!! $slot !!}</a>
+@else
+<span class="button button-{{ $color }}">{!! $slot !!}</span>
+@endif
 </td>
 </tr>
 </table>

@@ -31,11 +31,19 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
             return $lines;
         }
 
-        $wantsCheaper = (bool) preg_match('/\bcheaper\b/i', (string) end($requests));
+        $wantsCheaper = PlanConsistency::wantsCheaper($session);
+        $wantsLowKey = PlanConsistency::wantsLowKey($session);
+        $wantsDifferent = PlanConsistency::wantsDifferent($session);
 
-        $lines[] = $wantsCheaper
-            ? 'The person already has ideas. Keep the city, date, and group size. Replace the ideas with different plans that cost less.'
-            : 'The person already has a plan. Keep the city, date, group size, and budget unless their note changes those.';
+        if ($wantsCheaper) {
+            $lines[] = 'The person already has ideas. Keep the city, date, and group size. Replace the ideas with different plans that cost less.';
+        } elseif ($wantsLowKey) {
+            $lines[] = 'The person already has ideas. Keep the city, date, and group size. Replace them with a quieter, more low-key plan.';
+        } elseif ($wantsDifferent) {
+            $lines[] = 'The person already has ideas. Keep the city, date, group size, and a similar price. Replace the places with different ones of the same kind.';
+        } else {
+            $lines[] = 'The person already has a plan. Keep the city, date, group size, and budget unless their note changes those.';
+        }
 
         $ideaNames = [];
 
@@ -66,7 +74,11 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
             $lines[] = 'Current ideas: '.implode('; ', $priced !== [] ? $priced : $ideaNames);
 
             if ($wantsCheaper) {
-                $lines[] = 'Something cheaper means every new idea is a different plan, and its price is lower than the current ideas.';
+                $lines[] = PlanConsistency::cheaperInstruction($session);
+            } elseif ($wantsLowKey) {
+                $lines[] = 'More low-key means a quieter plan than the current one: smaller venues, an earlier pace, no nightclubs, and no big crowds. Do not make it louder, later, or more expensive.';
+            } elseif ($wantsDifferent) {
+                $lines[] = 'Like this but different means the same kind of outing and a similar price, with different places. Do not repeat the current places.';
             }
         }
 

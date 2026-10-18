@@ -74,6 +74,7 @@ p.sub {
 
 img {
     max-width: 100%;
+    position: static;
 }
 
 /* Layout */
@@ -100,8 +101,9 @@ img {
 /* Header */
 
 .header {
-    padding: 25px 0;
+    padding: 24px 0 0;
     text-align: center;
+    background-color: #ffffff;
 }
 
 .header a {
@@ -141,7 +143,7 @@ img {
     -premailer-width: 570px;
     background-color: #ffffff;
     border-color: #E4DDD4;
-    border-radius: 12px;
+    border-radius: 0 0 12px 12px;
     border-width: 1px;
     box-shadow: 0 1px 3px 0 rgba(26, 26, 26, 0.06), 0 1px 2px -1px rgba(26, 26, 26, 0.06);
     margin: 0 auto;
@@ -155,6 +157,11 @@ img {
 
 .inner-body a.button {
     word-break: normal;
+}
+
+.inner-body a.button-store {
+    word-break: normal;
+    color: #ffffff;
 }
 
 /* Subcopy */
@@ -298,6 +305,16 @@ img {
     border-left: 18px solid #dc2626;
     border-right: 18px solid #dc2626;
     border-top: 8px solid #dc2626;
+}
+
+.button-store {
+    background-color: #111111;
+    border-bottom: 8px solid #111111;
+    border-left: 18px solid #111111;
+    border-right: 18px solid #111111;
+    border-top: 8px solid #111111;
+    color: #ffffff;
+    word-break: normal;
 }
 
 /* Panels */

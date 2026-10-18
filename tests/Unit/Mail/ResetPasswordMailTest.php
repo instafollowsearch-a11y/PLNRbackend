@@ -46,9 +46,29 @@ class ResetPasswordMailTest extends TestCase
         $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html);
         $this->assertStringContainsString('https://apps.apple.com/app/plnr', $html);
         $this->assertStringContainsString('https://play.google.com/store/apps/details?id=app.plnr', $html);
+        $this->assertStringContainsString('href="https://apps.apple.com/app/plnr"', $html);
+        $this->assertStringContainsString('href="https://play.google.com/store/apps/details?id=app.plnr"', $html);
         $this->assertStringContainsString('App Store', $html);
         $this->assertStringContainsString('Google Play', $html);
+        $this->assertStringContainsString('button-store', $html);
+        $this->assertStringContainsString('<svg', $html);
 
         Carbon::setTestNow();
+    }
+
+    public function test_store_buttons_show_even_when_the_urls_are_not_set(): void
+    {
+        config([
+            'services.pro.app_store_url' => null,
+            'services.pro.play_store_url' => null,
+        ]);
+
+        $html = (new ResetPasswordMail('dterefe0@gmail.com', '482913'))->render();
+
+        $this->assertStringContainsString('App Store', $html);
+        $this->assertStringContainsString('Google Play', $html);
+        $this->assertStringContainsString('button-store', $html);
+        $this->assertStringNotContainsString('href="https://apps.apple.com', $html);
+        $this->assertStringNotContainsString('href="https://play.google.com', $html);
     }
 }

@@ -47,6 +47,30 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertStringContainsString('estimated_cost', $builder->suggestionSystemPrompt());
     }
 
+    public function test_solo_date_prompt_plans_for_one_person(): void
+    {
+        $builder = new DateNightPromptBuilder;
+        $session = new PlanSession([
+            'answers' => [
+                'self_gender' => 'woman',
+                'partner_gender' => 'solo',
+                'partner_interests' => 'bookstores and coffee',
+                'budget' => '80',
+            ],
+        ]);
+        $suggestion = new Suggestion([
+            'payload' => ['name' => 'Solo evening', 'description' => 'Coffee and a bookstore'],
+        ]);
+
+        $prompt = $builder->suggestionUserPrompt($session);
+
+        $this->assertStringContainsString('solo date', $prompt);
+        $this->assertStringContainsString('one person', $prompt);
+        $this->assertStringContainsString('bookstores and coffee', $prompt);
+        $this->assertStringNotContainsString('Partner gender:', $prompt);
+        $this->assertStringContainsString('one person', $builder->itineraryUserPrompt($session, $suggestion));
+    }
+
     public function test_vacation_builder_normalizes_highlights_and_days(): void
     {
         $builder = new VacationPromptBuilder;
@@ -229,7 +253,7 @@ class PlanPromptBuilderTest extends TestCase
         ]);
         $withStay = new PlanSession([
             'answers' => [
-                'needs_hotel' => "I need a hotel",
+                'needs_hotel' => 'I need a hotel',
                 'hotel_location' => 'Hotel Arts',
                 'hotel_shuttle' => 'Yes',
                 'flying' => 'Yes',
@@ -251,7 +275,7 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertStringContainsString('Use the hotel at Hotel Arts as the base for the plan.', $builder->itineraryUserPrompt($withStay, $suggestion));
         $needsSuggestion = new PlanSession([
             'answers' => [
-                'needs_hotel' => "I need a hotel",
+                'needs_hotel' => 'I need a hotel',
                 'hotel_pick' => '__suggest__',
                 'flying' => 'No',
             ],

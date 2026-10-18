@@ -16,6 +16,15 @@ class PlacePhotoController extends Controller
 
     public function show(string $token, PlaceListingLookup $listings, AppSettings $settings): Response
     {
+        $stored = $listings->storedImage($token);
+
+        if ($stored !== null) {
+            return response($stored['body'], 200, [
+                'Content-Type' => $stored['type'],
+                'Cache-Control' => 'public, max-age=86400',
+            ]);
+        }
+
         $name = $listings->photoName($token);
         $key = $settings->googleApiKey();
 
@@ -36,6 +45,8 @@ class PlacePhotoController extends Controller
         if ($image === null) {
             return $this->missing($this->failure);
         }
+
+        $listings->storeImage($token, $image['body'], $image['type']);
 
         return response($image['body'], 200, [
             'Content-Type' => $image['type'],

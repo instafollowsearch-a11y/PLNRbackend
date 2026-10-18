@@ -22,4 +22,6 @@ City: **{{ $city }}**
 @endif
 
 Enjoy your plans.
+
+@include('mail.partials.store-badges')
 @endcomponent

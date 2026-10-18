@@ -49,6 +49,22 @@ class StorePlanSessionValidationTest extends TestCase
             ]);
     }
 
+    public function test_date_night_accepts_a_solo_date(): void
+    {
+        $this->postJson('/api/v1/plan-sessions', [
+            'plan_type' => 'date_night',
+            'answers' => [
+                'self_gender' => 'woman',
+                'partner_gender' => 'solo',
+                'city' => 'Austin',
+                'timeframe' => 'Saturday, 10 AM – 10 PM',
+                'partner_interests' => 'bookstores and coffee',
+                'budget' => 80,
+                'event_count' => 2,
+            ],
+        ])->assertCreated();
+    }
+
     public function test_vacation_requires_destination_and_group_size(): void
     {
         $this->postJson('/api/v1/plan-sessions', [
