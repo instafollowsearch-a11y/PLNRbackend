@@ -52,6 +52,7 @@ class ResetPasswordMailTest extends TestCase
         $this->assertStringContainsString('Google Play', $html);
         $this->assertStringContainsString('button-store', $html);
         $this->assertStringContainsString('<svg', $html);
+        $this->assertSame(1, preg_match('/button-store[\s\S]+?<\/td>\s*<td[^>]*>[\s\S]+?button-store/', $html));
 
         Carbon::setTestNow();
     }
