@@ -19,6 +19,7 @@ use App\Services\Accounts\AccountDeletionService;
 use App\Services\Auth\GoogleSignIn;
 use App\Services\Plans\PlanShareService;
 use App\Services\Weekend\DeliverWeekendPicks;
+use App\Support\Email;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,7 +43,7 @@ class AuthController extends Controller
     {
         $user = User::query()->create([
             'name' => $request->string('name')->toString(),
-            'email' => $request->string('email')->toString(),
+            'email' => Email::normalize($request->string('email')->toString()),
             'password' => $request->string('password')->toString(),
         ]);
 
@@ -70,7 +71,7 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::query()->where('email', $request->string('email')->toString())->first();
+        $user = User::findByEmail($request->string('email')->toString());
 
         if (! $user || ! Hash::check($request->string('password')->toString(), $user->password)) {
             throw ValidationException::withMessages([
@@ -182,7 +183,7 @@ class AuthController extends Controller
         }
 
         if ($request->exists('email')) {
-            $payload['email'] = $request->string('email')->toString();
+            $payload['email'] = Email::normalize($request->string('email')->toString());
         }
 
         if ($request->exists('city')) {
@@ -293,7 +294,7 @@ class AuthController extends Controller
             return;
         }
 
-        if (strtolower($user->email) !== strtolower($share->invitee_email)) {
+        if (Email::normalize((string) $user->email) !== Email::normalize((string) $share->invitee_email)) {
             return;
         }
 

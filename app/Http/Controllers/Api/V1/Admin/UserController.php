@@ -21,8 +21,9 @@ class UserController extends Controller
         $query = User::query()->withCount('devicePushTokens')->orderByDesc('created_at');
 
         if ($search !== '') {
-            $query->where(function ($builder) use ($search): void {
-                $builder->where('email', 'like', "%{$search}%")
+            $needle = mb_strtolower($search);
+            $query->where(function ($builder) use ($search, $needle): void {
+                $builder->whereRaw('LOWER(email) like ?', ["%{$needle}%"])
                     ->orWhere('name', 'like', "%{$search}%");
             });
         }

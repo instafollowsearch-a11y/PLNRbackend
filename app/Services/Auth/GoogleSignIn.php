@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Models\User;
+use App\Support\Email;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -26,7 +27,7 @@ class GoogleSignIn
         }
 
         $sub = trim((string) ($payload['sub'] ?? ''));
-        $email = strtolower(trim((string) ($payload['email'] ?? '')));
+        $email = Email::normalize((string) ($payload['email'] ?? ''));
 
         if ($sub === '' || $email === '' || ! $this->emailIsVerified($payload)) {
             return null;
@@ -38,7 +39,7 @@ class GoogleSignIn
             return [$bySub, false];
         }
 
-        $byEmail = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+        $byEmail = User::findByEmail($email);
 
         if ($byEmail !== null) {
             if (is_string($byEmail->google_sub) && $byEmail->google_sub !== '' && $byEmail->google_sub !== $sub) {

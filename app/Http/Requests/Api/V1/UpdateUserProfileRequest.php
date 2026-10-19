@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Http\Requests\Concerns\NormalizesEmail;
+use App\Support\Email;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -9,9 +11,16 @@ use Illuminate\Validation\Validator;
 
 class UpdateUserProfileRequest extends FormRequest
 {
+    use NormalizesEmail;
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeEmailInput();
     }
 
     /**
@@ -45,7 +54,7 @@ class UpdateUserProfileRequest extends FormRequest
             }
 
             $email = $this->input('email');
-            if (! is_string($email) || strcasecmp(trim($email), $user->email) === 0) {
+            if (! is_string($email) || Email::normalize($email) === Email::normalize((string) $user->email)) {
                 return;
             }
 

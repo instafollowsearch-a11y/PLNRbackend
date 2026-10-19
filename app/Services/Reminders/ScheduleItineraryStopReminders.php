@@ -7,6 +7,7 @@ use App\Models\Itinerary;
 use App\Models\ItineraryStopReminder;
 use App\Models\PlanSession;
 use App\Services\Bookings\ItineraryScheduleParser;
+use App\Support\Email;
 use Illuminate\Support\Facades\Log;
 
 class ScheduleItineraryStopReminders
@@ -38,7 +39,7 @@ class ScheduleItineraryStopReminders
         bool $replaceRecipient = true,
     ): void {
         $planSession->loadMissing('planType');
-        $recipientEmail = strtolower(trim($recipientEmail));
+        $recipientEmail = Email::normalize($recipientEmail);
 
         if ($replaceRecipient) {
             ItineraryStopReminder::query()

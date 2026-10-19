@@ -14,7 +14,7 @@ class PromoteAdminCommand extends Command
     public function handle(): int
     {
         $email = (string) $this->argument('email');
-        $user = User::query()->where('email', $email)->first();
+        $user = User::findByEmail($email);
 
         if ($user === null) {
             $this->error("No user found with email [{$email}].");

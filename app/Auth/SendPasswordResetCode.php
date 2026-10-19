@@ -9,7 +9,7 @@ class SendPasswordResetCode
 {
     public function send(string $email): void
     {
-        $user = User::query()->where('email', $email)->first();
+        $user = User::findByEmail($email);
 
         if ($user === null) {
             return;

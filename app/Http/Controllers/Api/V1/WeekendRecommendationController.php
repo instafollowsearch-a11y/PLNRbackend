@@ -11,6 +11,7 @@ use App\Models\WeekendRecommendation;
 use App\Services\AI\WeekendRecommendationService;
 use App\Services\Notifications\ExpoPushService;
 use App\Services\Weekend\ScheduleWeekendPickNudges;
+use App\Support\Email;
 use App\Support\Http\RunAfterResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -156,9 +157,9 @@ class WeekendRecommendationController extends Controller
     {
         $this->authorizeRecommendation($request, $weekendRecommendation);
 
-        $email = strtolower(trim((string) $request->validate([
+        $email = Email::normalize((string) $request->validate([
             'email' => ['required', 'email', 'max:255'],
-        ])['email']));
+        ])['email']);
 
         Mail::to($email)->send(new WeekendRecommendationsMail($weekendRecommendation));
 

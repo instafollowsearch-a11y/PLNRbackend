@@ -39,7 +39,8 @@ class VisitController extends Controller
             $query->where(function ($builder) use ($search): void {
                 $builder->where('path', 'like', "%{$search}%")
                     ->orWhereHas('user', function ($users) use ($search): void {
-                        $users->where('email', 'like', "%{$search}%")
+                        $needle = mb_strtolower($search);
+                        $users->whereRaw('LOWER(email) like ?', ["%{$needle}%"])
                             ->orWhere('name', 'like', "%{$search}%");
                     });
             });

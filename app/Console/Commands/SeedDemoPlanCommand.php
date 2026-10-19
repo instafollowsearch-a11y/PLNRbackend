@@ -41,7 +41,7 @@ class SeedDemoPlanCommand extends Command
         }
 
         $email = (string) ($this->argument('email') ?? '');
-        $user = User::query()->where('email', $email)->first();
+        $user = User::findByEmail($email);
 
         if ($user === null) {
             $this->error('User not found: '.$email);

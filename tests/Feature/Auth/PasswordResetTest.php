@@ -41,7 +41,7 @@ class PasswordResetTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/v1/auth/forgot-password', [
-            'email' => 'user@plnr.test',
+            'email' => 'User@Plnr.Test',
         ]);
 
         $response
@@ -87,7 +87,7 @@ class PasswordResetTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/auth/forgot-password', [
-            'email' => 'user@plnr.test',
+            'email' => 'User@Plnr.Test',
         ])->assertOk();
 
         $token = null;

@@ -14,6 +14,7 @@ use App\Services\Events\FindLocalStopLinks;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
 use App\Services\Settings\AppSettings;
 use App\Services\Sms\SendsPlanInviteSms;
+use App\Support\Email;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -35,8 +36,8 @@ class PlanShareService
             ]);
         }
 
-        $inviteeEmail = strtolower(trim($inviteeEmail));
-        if ($inviteeEmail === strtolower((string) $inviter->email)) {
+        $inviteeEmail = Email::normalize($inviteeEmail);
+        if ($inviteeEmail === Email::normalize((string) $inviter->email)) {
             throw ValidationException::withMessages([
                 'email' => ['You cannot share a plan with yourself.'],
             ]);
@@ -71,9 +72,7 @@ class PlanShareService
     {
         $share->loadMissing(['planSession.planType', 'planSession.itinerary', 'inviter']);
 
-        $accountExists = User::query()
-            ->whereRaw('LOWER(email) = ?', [strtolower($share->invitee_email)])
-            ->exists();
+        $accountExists = User::findByEmail((string) $share->invitee_email) !== null;
 
         return [
             'token' => $share->token,
@@ -107,7 +106,7 @@ class PlanShareService
             ]);
         }
 
-        if (strtolower($user->email) !== strtolower($share->invitee_email)) {
+        if (Email::normalize((string) $user->email) !== Email::normalize((string) $share->invitee_email)) {
             throw ValidationException::withMessages([
                 'email' => ['Sign in with the email this plan was shared to.'],
             ]);

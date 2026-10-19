@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Http\Requests\Concerns\NormalizesEmail;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StorePlanShareRequest extends FormRequest
 {
+    use NormalizesEmail;
+
     public function authorize(): bool
     {
         return true;
@@ -13,6 +16,8 @@ class StorePlanShareRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $this->normalizeEmailInput();
+
         $phone = $this->input('phone');
 
         if (! is_string($phone)) {

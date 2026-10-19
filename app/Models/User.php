@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Pro\ProAccess;
+use App\Support\Email;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -64,6 +65,24 @@ class User extends Authenticatable
             'interests' => 'array',
             'pro_current_period_end' => 'datetime',
         ];
+    }
+
+    public function setEmailAttribute(mixed $value): void
+    {
+        $this->attributes['email'] = Email::normalize(is_string($value) ? $value : (string) $value);
+    }
+
+    public static function findByEmail(?string $email): ?self
+    {
+        $normalized = Email::normalize($email);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return static::query()
+            ->whereRaw('LOWER(email) = ?', [$normalized])
+            ->first();
     }
 
     public function isAdmin(): bool

@@ -70,6 +70,36 @@ class RegistrationLoginTest extends TestCase
             ->assertJsonValidationErrors(['email']);
     }
 
+    public function test_email_login_and_register_are_case_insensitive(): void
+    {
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Ada',
+            'email' => 'Ada.Lovelace@Plnr.Test',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.user.email', 'ada.lovelace@plnr.test');
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'ada.lovelace@plnr.test',
+        ]);
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Ada Again',
+            'email' => 'ADA.LOVELACE@PLNR.TEST',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertUnprocessable();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'ADA.LOVELACE@PLNR.TEST',
+            'password' => 'password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.user.email', 'ada.lovelace@plnr.test');
+    }
+
     public function test_unauthenticated_user_endpoint_returns_unauthorized(): void
     {
         $this->getJson('/api/v1/user')->assertUnauthorized();

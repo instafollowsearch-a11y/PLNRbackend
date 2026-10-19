@@ -28,8 +28,9 @@ class InterestMatchController extends Controller
         $search = trim($request->string('search')->toString());
 
         if ($search !== '') {
-            $query->whereHas('user', function ($users) use ($search): void {
-                $users->where('email', 'like', "%{$search}%")
+            $needle = mb_strtolower($search);
+            $query->whereHas('user', function ($users) use ($search, $needle): void {
+                $users->whereRaw('LOWER(email) like ?', ["%{$needle}%"])
                     ->orWhere('name', 'like', "%{$search}%");
             });
         }

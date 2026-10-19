@@ -4,6 +4,7 @@ namespace App\Services\Weekend;
 
 use App\Models\WeekendPickReminder;
 use App\Models\WeekendRecommendation;
+use App\Support\Email;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -11,7 +12,7 @@ class ScheduleWeekendPickNudges
 {
     public function replaceFor(WeekendRecommendation $recommendation, string $email): void
     {
-        $email = strtolower(trim($email));
+        $email = Email::normalize($email);
 
         WeekendPickReminder::query()
             ->where('user_id', $recommendation->user_id)
