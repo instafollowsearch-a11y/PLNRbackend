@@ -2,14 +2,12 @@
 
 namespace App\Jobs;
 
-use App\Mail\ItineraryStopReminderMail;
 use App\Models\ItineraryStopReminder;
 use App\Models\User;
 use App\Services\Notifications\ExpoPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class SendItineraryStopReminderJob implements ShouldQueue
 {
@@ -23,40 +21,21 @@ class SendItineraryStopReminderJob implements ShouldQueue
             ->with(['planSession.planType'])
             ->find($this->reminderId);
 
-        if ($reminder === null) {
+        if ($reminder === null || $reminder->push_sent_at !== null) {
             return;
         }
 
-        if ($reminder->email_sent_at === null) {
-            $this->sendEmail($reminder);
-        }
-
-        if ($reminder->fresh()->push_sent_at === null) {
-            $this->sendPush($reminder->fresh(), $expoPushService);
-        }
-    }
-
-    private function sendEmail(ItineraryStopReminder $reminder): void
-    {
-        try {
-            Mail::to($reminder->recipient_email)->send(new ItineraryStopReminderMail($reminder));
-            $reminder->update(['email_sent_at' => now()]);
-        } catch (\Throwable $exception) {
-            Log::error('itinerary_stop_reminder.send_failed', [
-                'reminder_id' => $reminder->id,
-                'plan_session_id' => $reminder->plan_session_id,
-                'error' => $exception->getMessage(),
-            ]);
-        }
-    }
-
-    private function sendPush(ItineraryStopReminder $reminder, ExpoPushService $expoPushService): void
-    {
         $user = User::query()
             ->whereRaw('LOWER(email) = ?', [strtolower($reminder->recipient_email)])
             ->first();
 
         if ($user === null || $user->devicePushTokens()->doesntExist()) {
+            Log::info('reminder.push_skipped', [
+                'kind' => 'itinerary_stop',
+                'reminder_id' => $reminder->id,
+                'reason' => $user === null ? 'no_user' : 'no_tokens',
+            ]);
+
             return;
         }
 

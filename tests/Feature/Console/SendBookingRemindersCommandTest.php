@@ -4,6 +4,7 @@ namespace Tests\Feature\Console;
 
 use App\Jobs\SendBookingReminderJob;
 use App\Models\Booking;
+use App\Models\DevicePushToken;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -18,11 +19,13 @@ class SendBookingRemindersCommandTest extends TestCase
         Queue::fake();
 
         $user = User::factory()->create();
+        DevicePushToken::factory()->create(['user_id' => $user->id]);
         $booking = Booking::factory()->create([
             'user_id' => $user->id,
             'status' => Booking::STATUS_CONFIRMED,
             'scheduled_for' => now()->addHours(12),
             'reminder_sent_at' => null,
+            'push_reminder_sent_at' => null,
         ]);
 
         $this->artisan('bookings:send-reminders')->assertSuccessful();
@@ -37,11 +40,13 @@ class SendBookingRemindersCommandTest extends TestCase
         Queue::fake();
 
         $user = User::factory()->create();
+        DevicePushToken::factory()->create(['user_id' => $user->id]);
         $booking = Booking::factory()->create([
             'user_id' => $user->id,
             'status' => Booking::STATUS_CONFIRMED,
             'scheduled_for' => now()->subMinutes(30),
             'reminder_sent_at' => null,
+            'push_reminder_sent_at' => null,
         ]);
 
         $this->artisan('bookings:send-reminders')->assertSuccessful();

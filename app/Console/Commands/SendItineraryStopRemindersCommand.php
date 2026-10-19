@@ -10,14 +10,14 @@ class SendItineraryStopRemindersCommand extends Command
 {
     protected $signature = 'itineraries:send-stop-reminders';
 
-    protected $description = 'Queue per-stop reminder emails that are due';
+    protected $description = 'Queue per-stop reminder pushes that are due';
 
     public function handle(): int
     {
         $reminders = ItineraryStopReminder::query()
-            ->whereNull('email_sent_at')
+            ->whereNull('push_sent_at')
             ->where('remind_at', '<=', now())
-            ->where('remind_at', '>=', now()->subHour())
+            ->where('remind_at', '>=', now()->subHours(6))
             ->orderBy('remind_at')
             ->get();
 

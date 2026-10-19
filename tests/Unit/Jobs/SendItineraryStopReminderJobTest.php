@@ -20,9 +20,10 @@ class SendItineraryStopReminderJobTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sends_stop_reminder_email_once(): void
+    public function test_skips_email_when_the_recipient_has_no_account(): void
     {
         Mail::fake();
+        Http::fake();
 
         $planType = PlanType::factory()->create(['slug' => 'date_night', 'label' => 'Plan My Date Night']);
         $session = PlanSession::factory()->create([
@@ -37,23 +38,17 @@ class SendItineraryStopReminderJobTest extends TestCase
             'recipient_email' => 'guest@plnr.test',
             'plan_type_slug' => 'date_night',
             'email_sent_at' => null,
+            'push_sent_at' => null,
         ]);
 
         $this->runJob($reminder->id);
 
-        Mail::assertSent(ItineraryStopReminderMail::class, function (ItineraryStopReminderMail $mail) {
-            return $mail->hasTo('guest@plnr.test')
-                && $mail->reminder->stop_name === 'Wine Bar';
-        });
-        $this->assertNotNull($reminder->fresh()->email_sent_at);
-        Http::assertNothingSent();
-
-        Mail::fake();
-        $this->runJob($reminder->id);
         Mail::assertNothingSent();
+        Http::assertNothingSent();
+        $this->assertNull($reminder->fresh()->push_sent_at);
     }
 
-    public function test_sends_one_email_and_one_push_then_nothing_on_the_second_run(): void
+    public function test_sends_one_push_then_nothing_on_the_second_run(): void
     {
         Mail::fake();
         Http::fake([
@@ -87,7 +82,7 @@ class SendItineraryStopReminderJobTest extends TestCase
 
         $this->runJob($reminder->id);
 
-        Mail::assertSent(ItineraryStopReminderMail::class, 1);
+        Mail::assertNotSent(ItineraryStopReminderMail::class);
         Http::assertSent(function ($request) use ($session) {
             $body = $request->data();
             $message = $body[0] ?? [];
@@ -95,19 +90,19 @@ class SendItineraryStopReminderJobTest extends TestCase
             return $request->url() === 'https://exp.host/--/api/v2/push/send'
                 && ($message['title'] ?? null) === 'Elephant Room'
                 && ($message['data']['plan_session_uuid'] ?? null) === $session->uuid
-                && ($message['data']['plan_type_slug'] ?? null) === 'night_out';
+                && ($message['data']['plan_type_slug'] ?? null) === 'night_out'
+                && ($message['channelId'] ?? null) === 'default'
+                && ($message['priority'] ?? null) === 'high';
         });
-        $this->assertNotNull($reminder->fresh()->email_sent_at);
         $this->assertNotNull($reminder->fresh()->push_sent_at);
 
-        Mail::fake();
         Http::fake();
         $this->runJob($reminder->id);
         Mail::assertNothingSent();
         Http::assertNothingSent();
     }
 
-    public function test_sends_only_the_email_when_the_recipient_has_no_token(): void
+    public function test_skips_when_the_recipient_has_no_token(): void
     {
         Mail::fake();
         Http::fake();
@@ -127,7 +122,7 @@ class SendItineraryStopReminderJobTest extends TestCase
 
         $this->runJob($reminder->id);
 
-        Mail::assertSent(ItineraryStopReminderMail::class, 1);
+        Mail::assertNothingSent();
         Http::assertNothingSent();
         $this->assertNull($reminder->fresh()->push_sent_at);
     }

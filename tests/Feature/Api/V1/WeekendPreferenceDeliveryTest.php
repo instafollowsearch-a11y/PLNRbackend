@@ -4,6 +4,7 @@ namespace Tests\Feature\Api\V1;
 
 use App\Mail\WeekendPickReminderMail;
 use App\Mail\WeekendRecommendationsMail;
+use App\Models\DevicePushToken;
 use App\Models\Event;
 use App\Models\User;
 use App\Models\WeekendPickReminder;
@@ -150,12 +151,16 @@ class WeekendPreferenceDeliveryTest extends TestCase
         $this->assertNull($recommendation->fresh()->email_sent_at);
     }
 
-    public function test_due_nudge_is_emailed(): void
+    public function test_due_nudge_is_pushed(): void
     {
         Mail::fake();
         $user = User::factory()->pro()->create([
             'city' => null,
             'interests' => null,
+        ]);
+        DevicePushToken::factory()->create([
+            'user_id' => $user->id,
+            'token' => 'ExponentPushToken[weekend-nudge]',
         ]);
         Sanctum::actingAs($user);
         $this->fakeWeekendEvents();
@@ -170,8 +175,11 @@ class WeekendPreferenceDeliveryTest extends TestCase
 
         $this->artisan('weekends:send-pick-reminders')->assertSuccessful();
 
-        Mail::assertSent(WeekendPickReminderMail::class, 1);
-        $this->assertNotNull($reminder->fresh()->email_sent_at);
+        Mail::assertNotSent(WeekendPickReminderMail::class);
+        $this->assertNotNull($reminder->fresh()->push_sent_at);
+        $this->assertNull($reminder->fresh()->email_sent_at);
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://exp.host/--/api/v2/push/send'
+            && str_contains((string) $request->body(), 'weekend-nudge'));
     }
 
     private function fakeWeekendEvents(): void

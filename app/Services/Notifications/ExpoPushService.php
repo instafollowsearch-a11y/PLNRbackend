@@ -16,10 +16,18 @@ class ExpoPushService
      */
     public function sendToUser(User $user, string $title, string $body, array $data = []): bool
     {
+        return $this->deliverToUser($user, $title, $body, $data)->sent;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function deliverToUser(User $user, string $title, string $body, array $data = []): ExpoPushResult
+    {
         $tokens = $user->devicePushTokens()->pluck('token')->all();
 
         if ($tokens === []) {
-            return false;
+            return new ExpoPushResult(sent: false, tokenCount: 0);
         }
 
         $messages = array_map(
@@ -29,6 +37,8 @@ class ExpoPushService
                 'body' => $body,
                 'data' => $data,
                 'sound' => 'default',
+                'priority' => 'high',
+                'channelId' => 'default',
             ],
             $tokens,
         );
@@ -42,17 +52,26 @@ class ExpoPushService
                 'status' => $response->status(),
             ]);
 
-            return false;
+            return new ExpoPushResult(
+                sent: false,
+                tokenCount: count($tokens),
+                ticketErrors: ['http_'.$response->status()],
+            );
         }
 
         $payload = $response->json();
 
         if (! is_array($payload)) {
-            return false;
+            return new ExpoPushResult(
+                sent: false,
+                tokenCount: count($tokens),
+                ticketErrors: ['invalid_response'],
+            );
         }
 
         $items = isset($payload['data']) && is_array($payload['data']) ? $payload['data'] : $payload;
         $sent = false;
+        $ticketErrors = [];
 
         foreach ($items as $index => $item) {
             if (! is_array($item)) {
@@ -68,7 +87,8 @@ class ExpoPushService
             }
 
             $details = is_array($item['details'] ?? null) ? $item['details'] : [];
-            $error = (string) ($details['error'] ?? $item['message'] ?? '');
+            $error = (string) ($details['error'] ?? $item['message'] ?? 'unknown');
+            $ticketErrors[] = $error;
 
             if ($error === 'DeviceNotRegistered' && isset($tokens[$index])) {
                 DevicePushToken::query()->where('token', $tokens[$index])->delete();
@@ -81,6 +101,10 @@ class ExpoPushService
             ]);
         }
 
-        return $sent;
+        return new ExpoPushResult(
+            sent: $sent,
+            tokenCount: count($tokens),
+            ticketErrors: $ticketErrors,
+        );
     }
 }

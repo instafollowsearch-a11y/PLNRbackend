@@ -24,6 +24,7 @@ class UserResource extends JsonResource
             'pro_status' => $this->pro_status ?? User::PRO_STATUS_INACTIVE,
             'pro_current_period_end' => $this->pro_current_period_end?->toIso8601String(),
             'is_pro' => $this->resource->isPro(),
+            'push_token_count' => (int) ($this->device_push_tokens_count ?? $this->devicePushTokens()->count()),
         ];
     }
 }

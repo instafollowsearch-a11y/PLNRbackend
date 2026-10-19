@@ -3,7 +3,6 @@
 namespace Tests\Feature\Console;
 
 use App\Jobs\SendItineraryStopReminderJob;
-use App\Mail\ItineraryStopReminderMail;
 use App\Models\Itinerary;
 use App\Models\ItineraryStopReminder;
 use App\Models\PlanSession;
@@ -32,6 +31,7 @@ class SendItineraryStopRemindersCommandTest extends TestCase
             'remind_at' => now()->subMinutes(10),
             'scheduled_at' => now()->addMinutes(20),
             'email_sent_at' => null,
+            'push_sent_at' => null,
         ]);
 
         ItineraryStopReminder::factory()->create([

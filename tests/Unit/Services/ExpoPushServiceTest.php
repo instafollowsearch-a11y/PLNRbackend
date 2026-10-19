@@ -39,7 +39,9 @@ class ExpoPushServiceTest extends TestCase
             $body = $request->data();
 
             return ($body[0]['to'] ?? null) === 'ExponentPushToken[abc123]'
-                && ($body[0]['title'] ?? null) === 'Reminder';
+                && ($body[0]['title'] ?? null) === 'Reminder'
+                && ($body[0]['channelId'] ?? null) === 'default'
+                && ($body[0]['priority'] ?? null) === 'high';
         });
     }
 

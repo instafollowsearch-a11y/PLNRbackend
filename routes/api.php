@@ -117,6 +117,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/interest-scans', [AdminInterestMatchController::class, 'store']);
             Route::get('/users', [AdminUserController::class, 'index']);
             Route::patch('/users/{user}', [AdminUserController::class, 'update']);
+            Route::post('/users/{user}/test-notification', [AdminUserController::class, 'testNotification']);
             Route::get('/settings', [AdminSettingsController::class, 'show']);
             Route::patch('/settings', [AdminSettingsController::class, 'update']);
             Route::post('/plan-card-images', [PlanCardImageController::class, 'store']);

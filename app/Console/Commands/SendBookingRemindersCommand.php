@@ -10,25 +10,20 @@ class SendBookingRemindersCommand extends Command
 {
     protected $signature = 'bookings:send-reminders';
 
-    protected $description = 'Queue reminder emails and push notifications for upcoming confirmed bookings';
+    protected $description = 'Queue reminder pushes for upcoming confirmed bookings';
 
     public function handle(): int
     {
         $bookings = Booking::query()
             ->with(['user.devicePushTokens'])
             ->where('status', Booking::STATUS_CONFIRMED)
+            ->whereNull('push_reminder_sent_at')
+            ->whereHas('user.devicePushTokens')
             ->where(function ($query): void {
                 $query->whereBetween('scheduled_for', [now(), now()->addDay()])
                     ->orWhere(function ($catchUp): void {
                         $catchUp->where('scheduled_for', '>=', now()->subHour())
                             ->where('scheduled_for', '<', now());
-                    });
-            })
-            ->where(function ($query): void {
-                $query->whereNull('reminder_sent_at')
-                    ->orWhere(function ($inner): void {
-                        $inner->whereNull('push_reminder_sent_at')
-                            ->whereHas('user.devicePushTokens');
                     });
             })
             ->get();

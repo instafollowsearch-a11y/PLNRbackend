@@ -3,7 +3,7 @@
 
 # {{ $acceptedBy->name }} accepted your plan invite
 
-{{ $acceptedBy->name }} ({{ $acceptedBy->email }}) can now view this plan with you. They’ll also get plan reminder emails when stops are coming up.
+{{ $acceptedBy->name }} ({{ $acceptedBy->email }}) can now view this plan with you. They’ll also get a reminder in the app when stops are coming up.
 
 @if (!empty($share->planSession?->planType?->label) || !empty($share->planSession?->city))
 @if (!empty($share->planSession?->planType?->label))
