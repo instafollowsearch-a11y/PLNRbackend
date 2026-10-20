@@ -17,7 +17,7 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
 
     public function suggestionSystemPrompt(): string
     {
-        return 'You are a vacation planning assistant. Return only valid JSON with key "suggestions" containing 3 to 5 objects. Each object must have: name (string), description (string), estimated_cost_total (number), highlights (array of strings). Prefer real local events from the user prompt when relevant; you may combine or suggest alternatives.';
+        return $this->withPricingRealism('You are a vacation planning assistant. Return only valid JSON with key "suggestions" containing 3 to 5 objects. Each object must have: name (string), description (string), estimated_cost_total (number), highlights (array of strings). Prefer real local events from the user prompt when relevant; you may combine or suggest alternatives.');
     }
 
     public function suggestionUserPrompt(PlanSession $session): string
@@ -31,7 +31,7 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return 'You are a vacation itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), days (array of objects with date, theme, stops where each stop has time, name, activity, notes, and cost_per_person). cost_per_person is an estimated number for one person. Omit cost_per_person when you do not have an estimate. Use the year from the travel dates on every day label.';
+        return $this->withPricingRealism('You are a vacation itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), days (array of objects with date, theme, stops where each stop has time, name, activity, notes, and cost_per_person). cost_per_person is an estimated number for one person. Omit cost_per_person when you do not have an estimate. Use the year from the travel dates on every day label.');
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string

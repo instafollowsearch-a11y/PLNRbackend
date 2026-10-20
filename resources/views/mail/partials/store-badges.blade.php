@@ -15,29 +15,44 @@
 
     $mailMessage = $message ?? ($plnrMailMessage ?? null);
     $canEmbed = isset($mailMessage) && is_object($mailMessage) && method_exists($mailMessage, 'embed');
-    $appleFile = public_path('images/store-apple.png');
-    $playFile = public_path('images/store-play.png');
-    $appleIcon = ($canEmbed && is_file($appleFile)) ? $mailMessage->embed($appleFile) : asset('images/store-apple.png');
-    $playIcon = ($canEmbed && is_file($playFile)) ? $mailMessage->embed($playFile) : asset('images/store-play.png');
-    $iconStyle = 'display:inline-block;border:0;outline:none;width:18px;height:18px;max-width:18px;max-height:18px;vertical-align:middle;margin-right:8px;';
+    $appStoreFile = public_path('images/app-store-badge.png');
+    $playStoreFile = public_path('images/google-play-badge.png');
+    $appStoreBadge = ($canEmbed && is_file($appStoreFile))
+        ? $mailMessage->embed($appStoreFile)
+        : asset('images/app-store-badge.png');
+    $playStoreBadge = ($canEmbed && is_file($playStoreFile))
+        ? $mailMessage->embed($playStoreFile)
+        : asset('images/google-play-badge.png');
+    // Official badge art is 168x56 / 188x56 — keep height ~40 so both sit side-by-side on phones.
+    $appImgStyle = 'display:block;border:0;outline:none;text-decoration:none;width:120px;height:40px;max-width:120px;max-height:40px;';
+    $playImgStyle = 'display:block;border:0;outline:none;text-decoration:none;width:134px;height:40px;max-width:134px;max-height:40px;';
+    $cellStyle = 'padding:0 6px;white-space:nowrap;vertical-align:middle;';
 @endphp
-<table class="action" align="center" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin: 16px auto 0;">
+<table class="store-badges" align="center" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:16px auto 0;border-collapse:collapse;">
 <tr>
-<td align="center">
-<table border="0" cellpadding="0" cellspacing="0" role="presentation" align="center">
+<td align="center" style="padding:0;">
+<table border="0" cellpadding="0" cellspacing="0" role="presentation" align="center" style="border-collapse:collapse;margin:0 auto;">
 <tr>
-<td align="center" valign="middle" style="padding: 0 6px;">
+<td align="center" valign="middle" class="store-badge" style="{{ $cellStyle }}">
 @if (is_string($appStoreUrl) && $appStoreUrl !== '')
-<a href="{{ $appStoreUrl }}" class="button button-store" target="_blank" rel="noopener"><img src="{{ $appleIcon }}" alt="" width="18" height="18" style="{{ $iconStyle }}">App Store</a>
+<a href="{{ $appStoreUrl }}" class="store-badge-link" target="_blank" rel="noopener" style="display:inline-block;line-height:0;text-decoration:none;border:0;outline:none;">
+<img src="{{ $appStoreBadge }}" alt="Download on the App Store" width="120" height="40" style="{{ $appImgStyle }}">
+</a>
 @else
-<span class="button button-store"><img src="{{ $appleIcon }}" alt="" width="18" height="18" style="{{ $iconStyle }}">App Store</span>
+<span class="store-badge-link" style="display:inline-block;line-height:0;">
+<img src="{{ $appStoreBadge }}" alt="Download on the App Store" width="120" height="40" style="{{ $appImgStyle }}">
+</span>
 @endif
 </td>
-<td align="center" valign="middle" style="padding: 0 6px;">
+<td align="center" valign="middle" class="store-badge" style="{{ $cellStyle }}">
 @if (is_string($playStoreUrl) && $playStoreUrl !== '')
-<a href="{{ $playStoreUrl }}" class="button button-store" target="_blank" rel="noopener"><img src="{{ $playIcon }}" alt="" width="18" height="18" style="{{ $iconStyle }}">Google Play</a>
+<a href="{{ $playStoreUrl }}" class="store-badge-link" target="_blank" rel="noopener" style="display:inline-block;line-height:0;text-decoration:none;border:0;outline:none;">
+<img src="{{ $playStoreBadge }}" alt="Get it on Google Play" width="134" height="40" style="{{ $playImgStyle }}">
+</a>
 @else
-<span class="button button-store"><img src="{{ $playIcon }}" alt="" width="18" height="18" style="{{ $iconStyle }}">Google Play</span>
+<span class="store-badge-link" style="display:inline-block;line-height:0;">
+<img src="{{ $playStoreBadge }}" alt="Get it on Google Play" width="134" height="40" style="{{ $playImgStyle }}">
+</span>
 @endif
 </td>
 </tr>

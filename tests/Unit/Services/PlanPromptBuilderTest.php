@@ -343,4 +343,34 @@ class PlanPromptBuilderTest extends TestCase
 
         $this->assertInstanceOf(VacationPromptBuilder::class, $builder);
     }
+
+    public function test_all_plan_system_prompts_require_realistic_pricing(): void
+    {
+        $builders = [
+            new NightOutPromptBuilder,
+            new DateNightPromptBuilder,
+            new VacationPromptBuilder,
+            new RoadTripPromptBuilder,
+        ];
+
+        foreach ($builders as $builder) {
+            foreach ([$builder->suggestionSystemPrompt(), $builder->itinerarySystemPrompt()] as $prompt) {
+                $this->assertStringContainsString(
+                    'Pricing must be realistic',
+                    $prompt,
+                    $builder->slug().' system prompt missing pricing realism',
+                );
+                $this->assertStringContainsString(
+                    'never describe an expensive venue as about $15',
+                    $prompt,
+                    $builder->slug().' system prompt missing expensive-venue rule',
+                );
+                $this->assertStringContainsString(
+                    'appropriately priced places',
+                    $prompt,
+                    $builder->slug().' system prompt missing budget-matching rule',
+                );
+            }
+        }
+    }
 }

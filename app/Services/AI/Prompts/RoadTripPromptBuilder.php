@@ -17,7 +17,7 @@ class RoadTripPromptBuilder extends AbstractPlanPromptBuilder
 
     public function suggestionSystemPrompt(): string
     {
-        return 'You are a road trip planning assistant. Return only valid JSON with key "suggestions" containing 3 to 5 objects. Each object must have: name (string), description (string), estimated_gas_cost (number), estimated_food_cost (number), total_drive_time (string), stops (array of objects with name, closing_time, duration). Base estimated_gas_cost on the chosen car type. duration is how long to stay, such as 45 min. closing_time is when to be there. Prefer real local events from the user prompt when relevant; you may combine or suggest alternatives.';
+        return $this->withPricingRealism('You are a road trip planning assistant. Return only valid JSON with key "suggestions" containing 3 to 5 objects. Each object must have: name (string), description (string), estimated_gas_cost (number), estimated_food_cost (number), total_drive_time (string), stops (array of objects with name, closing_time, duration). Base estimated_gas_cost on the chosen car type. duration is how long to stay, such as 45 min. closing_time is when to be there. Prefer real local events from the user prompt when relevant; you may combine or suggest alternatives.');
     }
 
     public function suggestionUserPrompt(PlanSession $session): string
@@ -30,7 +30,7 @@ class RoadTripPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return 'You are a road trip itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), days (array of objects with date, theme, and stops). Each stop has time, name, activity, notes under 25 words, and optional venue_url / maps_url https links when known. Return one days entry for every calendar day from departure through arrival. A same-day drive is one day. time is a clock time. The notes include how long to stay. Include departure, stops, food breaks, and arrival. Keep the full response under 2500 tokens.';
+        return $this->withPricingRealism('You are a road trip itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), days (array of objects with date, theme, and stops). Each stop has time, name, activity, notes under 25 words, and optional venue_url / maps_url https links when known. Return one days entry for every calendar day from departure through arrival. A same-day drive is one day. time is a clock time. The notes include how long to stay. Include departure, stops, food breaks, and arrival. Keep the full response under 2500 tokens.');
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string

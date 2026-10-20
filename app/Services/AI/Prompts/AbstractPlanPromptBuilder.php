@@ -17,6 +17,23 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
 
     public const OPEN_TO_SUGGESTIONS_LINE = 'The person selected Open to suggestions. They do not know exactly what they want, so mix different kinds of stops. Any other selected interests are only a light lean.';
 
+    /**
+     * Shared pricing realism for every Claude suggestion and itinerary response.
+     * Cost numbers must match real venue tiers — never underprice expensive places.
+     */
+    public const PRICING_REALISM_RULES = 'Pricing must be realistic for the named places. Estimate from typical menu prices, tickets, cover charges, lodging, or travel costs in that city — not a round "nice" number. Fine dining, steakhouses, cocktail bars, clubs, hotels, and major attractions use mid-to-high real-world ranges; never describe an expensive venue as about $15 or similarly cheap. Stay within the stated budget by choosing appropriately priced places, not by underpricing expensive ones. Numeric cost fields and the description must agree. When asked for cheaper options, still use realistic prices for the cheaper tier.';
+
+    protected function withPricingRealism(string $prompt): string
+    {
+        $prompt = trim($prompt);
+
+        if ($prompt === '') {
+            return self::PRICING_REALISM_RULES;
+        }
+
+        return $prompt.' '.self::PRICING_REALISM_RULES;
+    }
+
     protected function appendRefinementMessages(PlanSession $session, array $lines): array
     {
         $requests = [];

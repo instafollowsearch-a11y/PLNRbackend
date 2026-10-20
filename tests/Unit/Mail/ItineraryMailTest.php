@@ -76,7 +76,7 @@ class ItineraryMailTest extends TestCase
         $this->assertStringContainsString('Austin', $html);
         $this->assertStringContainsString('View your plans', $html);
         $plansAt = strpos($html, 'Enjoy your plans.');
-        $storeAt = strpos($html, 'button-store');
+        $storeAt = strpos($html, 'Download on the App Store');
         $copyrightAt = strpos($html, 'All rights reserved.');
         $this->assertNotFalse($plansAt);
         $this->assertNotFalse($storeAt);
@@ -85,8 +85,8 @@ class ItineraryMailTest extends TestCase
         $this->assertLessThan($copyrightAt, $storeAt);
         $this->assertStringContainsString('href="https://apps.apple.com/app/plnr"', $html);
         $this->assertStringContainsString('href="https://play.google.com/store/apps/details?id=app.plnr"', $html);
-        $this->assertStringContainsString('App Store', $html);
-        $this->assertStringContainsString('Google Play', $html);
+        $this->assertStringContainsString('Download on the App Store', $html);
+        $this->assertStringContainsString('Get it on Google Play', $html);
         $this->assertStringNotContainsString('The full plan stays on PLNR.', $html);
         $this->assertStringContainsString('/plan/night_out/itinerary?session='.$session->uuid, $html);
         $this->assertStringNotContainsString('Blue Note Bar', $html);

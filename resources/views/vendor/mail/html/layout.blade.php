@@ -21,6 +21,14 @@ width: 100% !important;
 .button {
 width: 100% !important;
 }
+
+.button-store,
+.store-badge,
+.store-badge-link,
+.store-badges img {
+width: auto !important;
+max-width: none !important;
+}
 }
 </style>
 {!! $head ?? '' !!}

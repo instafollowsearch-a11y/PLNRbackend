@@ -48,11 +48,14 @@ class ResetPasswordMailTest extends TestCase
         $this->assertStringContainsString('https://play.google.com/store/apps/details?id=app.plnr', $html);
         $this->assertStringContainsString('href="https://apps.apple.com/app/plnr"', $html);
         $this->assertStringContainsString('href="https://play.google.com/store/apps/details?id=app.plnr"', $html);
-        $this->assertStringContainsString('App Store', $html);
-        $this->assertStringContainsString('Google Play', $html);
-        $this->assertStringContainsString('button-store', $html);
-        $this->assertStringContainsString('width="18" height="18"', $html);
-        $this->assertSame(1, preg_match('/button-store[\s\S]+?<\/td>\s*<td[^>]*>[\s\S]+?button-store/', $html));
+        $this->assertStringContainsString('Download on the App Store', $html);
+        $this->assertStringContainsString('Get it on Google Play', $html);
+        $this->assertStringContainsString('class="store-badge"', $html);
+        $this->assertStringContainsString('height="40"', $html);
+        $this->assertStringContainsString('.store-badge', $html);
+        $this->assertStringContainsString('width: auto !important', $html);
+        $this->assertSame(2, substr_count($html, 'class="store-badge"'));
+        $this->assertStringNotContainsString('class="button button-store"', $html);
 
         Carbon::setTestNow();
     }
@@ -66,9 +69,9 @@ class ResetPasswordMailTest extends TestCase
 
         $html = (new ResetPasswordMail('dterefe0@gmail.com', '482913'))->render();
 
-        $this->assertStringContainsString('App Store', $html);
-        $this->assertStringContainsString('Google Play', $html);
-        $this->assertStringContainsString('button-store', $html);
+        $this->assertStringContainsString('Download on the App Store', $html);
+        $this->assertStringContainsString('Get it on Google Play', $html);
+        $this->assertStringContainsString('store-badge', $html);
         $this->assertStringNotContainsString('href="https://apps.apple.com', $html);
         $this->assertStringNotContainsString('href="https://play.google.com', $html);
     }
