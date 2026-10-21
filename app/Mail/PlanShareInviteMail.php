@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\PlanShare;
+use App\Services\Settings\AppSettings;
 use App\Support\Mail\MailSubject;
 use App\Support\Mail\PlanTypeMailTheme;
 use Illuminate\Bus\Queueable;

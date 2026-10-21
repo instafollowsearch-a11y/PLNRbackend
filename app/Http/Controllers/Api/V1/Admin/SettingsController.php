@@ -34,6 +34,11 @@ class SettingsController extends Controller
         $this->applyOptionalString($request, $settings, 'twilio_auth_token', AppSettings::TWILIO_AUTH_TOKEN, 'clear_twilio_auth_token');
         $this->applyOptionalString($request, $settings, 'twilio_from_number', AppSettings::TWILIO_FROM_NUMBER, 'clear_twilio_from_number');
         $this->applyOptionalString($request, $settings, 'twilio_messaging_service_sid', AppSettings::TWILIO_MESSAGING_SERVICE_SID, 'clear_twilio_messaging_service_sid');
+
+        if ($request->exists('plan_invite_sms_enabled')) {
+            $settings->set(AppSettings::PLAN_INVITE_SMS_ENABLED, $request->boolean('plan_invite_sms_enabled'));
+        }
+
         $this->applyOptionalString($request, $settings, 'findlocal_api_key', AppSettings::FINDLOCAL_API_KEY, 'clear_findlocal_api_key');
         $this->applyOptionalString($request, $settings, 'anthropic_model', AppSettings::ANTHROPIC_MODEL, 'clear_anthropic_model');
         $this->applyOptionalString($request, $settings, 'anthropic_url', AppSettings::ANTHROPIC_URL, 'clear_anthropic_url');

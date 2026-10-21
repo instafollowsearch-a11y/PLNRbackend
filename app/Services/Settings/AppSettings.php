@@ -32,6 +32,8 @@ class AppSettings
 
     public const TWILIO_MESSAGING_SERVICE_SID = 'twilio_messaging_service_sid';
 
+    public const PLAN_INVITE_SMS_ENABLED = 'plan_invite_sms_enabled';
+
     public const FINDLOCAL_API_KEY = 'findlocal_api_key';
 
     public const ANTHROPIC_MODEL = 'anthropic_model';
@@ -85,6 +87,7 @@ class AppSettings
         self::TWILIO_AUTH_TOKEN,
         self::TWILIO_FROM_NUMBER,
         self::TWILIO_MESSAGING_SERVICE_SID,
+        self::PLAN_INVITE_SMS_ENABLED,
         self::FINDLOCAL_API_KEY,
         self::ANTHROPIC_MODEL,
         self::ANTHROPIC_URL,
@@ -263,6 +266,11 @@ class AppSettings
             config('services.twilio.messaging_service_sid'),
         );
         $settings[self::TWILIO_MESSAGING_SERVICE_SID.'_env'] = config('services.twilio.messaging_service_sid');
+
+        $settings[self::PLAN_INVITE_SMS_ENABLED] = $this->planInviteSmsEnabled();
+        $settings[self::PLAN_INVITE_SMS_ENABLED.'_source'] = $this->hasOverride(self::PLAN_INVITE_SMS_ENABLED)
+            ? 'admin'
+            : 'default';
 
         $settings[self::FINDLOCAL_API_KEY.'_set'] = $this->findLocalApiKey() !== null;
         $settings[self::FINDLOCAL_API_KEY.'_source'] = $this->sourceFor(
@@ -627,6 +635,29 @@ class AppSettings
             self::TWILIO_FROM_NUMBER,
             is_string($fallback) ? $fallback : null,
         );
+    }
+
+    public function planInviteSmsEnabled(): bool
+    {
+        if (! $this->hasOverride(self::PLAN_INVITE_SMS_ENABLED)) {
+            return false;
+        }
+
+        $override = $this->get(self::PLAN_INVITE_SMS_ENABLED);
+
+        if (is_bool($override)) {
+            return $override;
+        }
+
+        if (is_int($override) || is_float($override)) {
+            return (int) $override === 1;
+        }
+
+        if (is_string($override)) {
+            return filter_var($override, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return false;
     }
 
     public function twilioMessagingServiceSid(): ?string

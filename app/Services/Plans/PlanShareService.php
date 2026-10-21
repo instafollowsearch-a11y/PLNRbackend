@@ -43,6 +43,10 @@ class PlanShareService
             ]);
         }
 
+        if (! $this->settings->planInviteSmsEnabled()) {
+            $inviteePhone = null;
+        }
+
         $planSession->ensureOwnerMembership();
 
         $share = PlanShare::query()->create([
@@ -174,6 +178,10 @@ class PlanShareService
         $phone = $share->invitee_phone;
 
         if (! is_string($phone) || $phone === '') {
+            return [false, null];
+        }
+
+        if (! $this->settings->planInviteSmsEnabled()) {
             return [false, null];
         }
 

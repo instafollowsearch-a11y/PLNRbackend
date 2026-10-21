@@ -11,6 +11,7 @@ use App\Models\PlanSession;
 use App\Models\PlanShare;
 use App\Models\PlanType;
 use App\Models\User;
+use App\Services\Settings\AppSettings;
 use App\Services\Sms\SendsPlanInviteSms;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -211,10 +212,37 @@ class PlanShareApiTest extends TestCase
         Mail::assertSent(PlanShareInviteMail::class);
     }
 
+    public function test_phone_is_ignored_when_plan_invite_sms_is_disabled(): void
+    {
+        Mail::fake();
+        $sms = new FakePlanInviteSms;
+        $this->app->instance(SendsPlanInviteSms::class, $sms);
+
+        $owner = User::factory()->create();
+        $session = $this->ownedCompletedSession($owner);
+
+        Sanctum::actingAs($owner);
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'friend@plnr.test',
+            'phone' => '+15551234567',
+        ])->assertCreated()
+            ->assertJsonPath('data.share.invitee_phone', null)
+            ->assertJsonPath('data.share.sms_sent', false)
+            ->assertJsonPath('message', 'Plan invite sent.');
+
+        $this->assertSame([], $sms->messages);
+        $this->assertDatabaseHas('plan_shares', [
+            'invitee_email' => 'friend@plnr.test',
+            'invitee_phone' => null,
+        ]);
+        Mail::assertSent(PlanShareInviteMail::class);
+    }
+
     public function test_share_with_phone_sends_sms_and_stores_the_number(): void
     {
         Mail::fake();
         config(['services.pro.web_app_url' => 'https://myplnr.app']);
+        app(AppSettings::class)->set(AppSettings::PLAN_INVITE_SMS_ENABLED, true);
         $sms = new FakePlanInviteSms;
         $this->app->instance(SendsPlanInviteSms::class, $sms);
 
@@ -244,6 +272,7 @@ class PlanShareApiTest extends TestCase
     public function test_sms_failure_keeps_the_email_invite(): void
     {
         Mail::fake();
+        app(AppSettings::class)->set(AppSettings::PLAN_INVITE_SMS_ENABLED, true);
         $sms = new FakePlanInviteSms(shouldFail: true);
         $this->app->instance(SendsPlanInviteSms::class, $sms);
 
@@ -268,6 +297,7 @@ class PlanShareApiTest extends TestCase
     public function test_phone_without_twilio_configuration_still_sends_email(): void
     {
         Mail::fake();
+        app(AppSettings::class)->set(AppSettings::PLAN_INVITE_SMS_ENABLED, true);
         $sms = new FakePlanInviteSms(isConfigured: false);
         $this->app->instance(SendsPlanInviteSms::class, $sms);
 
@@ -289,6 +319,7 @@ class PlanShareApiTest extends TestCase
     public function test_invalid_phone_is_rejected(): void
     {
         Mail::fake();
+        app(AppSettings::class)->set(AppSettings::PLAN_INVITE_SMS_ENABLED, true);
         $owner = User::factory()->create();
         $session = $this->ownedCompletedSession($owner);
 

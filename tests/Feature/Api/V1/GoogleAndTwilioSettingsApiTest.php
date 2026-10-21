@@ -94,6 +94,39 @@ class GoogleAndTwilioSettingsApiTest extends TestCase
             ->assertJsonPath('errors.google_client_id.0', 'Enter the Web client ID ending in .apps.googleusercontent.com.');
     }
 
+    public function test_admin_can_toggle_plan_invite_sms(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/v1/billing-config')
+            ->assertOk()
+            ->assertJsonPath('data.plan_invite_sms_enabled', false);
+
+        $this->patchJson('/api/v1/admin/settings', [
+            'plan_invite_sms_enabled' => true,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.settings.plan_invite_sms_enabled', true)
+            ->assertJsonPath('data.settings.plan_invite_sms_enabled_source', 'admin');
+
+        $this->assertTrue(app(AppSettings::class)->planInviteSmsEnabled());
+
+        auth()->forgetGuards();
+
+        $this->getJson('/api/v1/billing-config')
+            ->assertOk()
+            ->assertJsonPath('data.plan_invite_sms_enabled', true);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->patchJson('/api/v1/admin/settings', [
+            'plan_invite_sms_enabled' => false,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.settings.plan_invite_sms_enabled', false);
+
+        $this->assertFalse(app(AppSettings::class)->planInviteSmsEnabled());
+    }
+
     public function test_admin_can_save_twilio_settings_without_returning_the_auth_token(): void
     {
         config([

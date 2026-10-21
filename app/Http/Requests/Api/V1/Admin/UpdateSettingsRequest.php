@@ -27,6 +27,7 @@ class UpdateSettingsRequest extends FormRequest
             'twilio_auth_token' => ['sometimes', 'nullable', 'string', 'max:255'],
             'twilio_from_number' => ['sometimes', 'nullable', 'string', 'regex:/^\+[1-9]\d{7,14}$/'],
             'twilio_messaging_service_sid' => ['sometimes', 'nullable', 'string', 'regex:/^MG[0-9a-fA-F]{32}$/'],
+            'plan_invite_sms_enabled' => ['sometimes', 'boolean'],
             'findlocal_api_key' => ['sometimes', 'nullable', 'string', 'max:500'],
             'anthropic_model' => ['sometimes', 'nullable', 'string', 'max:120'],
             'anthropic_url' => ['sometimes', 'nullable', 'string', 'max:255'],

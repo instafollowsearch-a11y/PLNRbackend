@@ -19,6 +19,7 @@ class BillingConfigController extends Controller
                 'web_app_url' => $settings->webAppUrl(),
                 'stripe_fake' => $settings->stripeFake(),
                 'stripe_configured' => $settings->stripeSecret() !== null && $settings->stripeSecret() !== '',
+                'plan_invite_sms_enabled' => $settings->planInviteSmsEnabled(),
             ],
             'message' => 'Billing configuration retrieved.',
         ]);

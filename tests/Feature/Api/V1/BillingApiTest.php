@@ -32,7 +32,8 @@ class BillingApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.pro_monthly_price_cents', 999)
             ->assertJsonPath('data.pro_currency', 'usd')
-            ->assertJsonPath('data.stripe_fake', true);
+            ->assertJsonPath('data.stripe_fake', true)
+            ->assertJsonPath('data.plan_invite_sms_enabled', false);
     }
 
     public function test_portal_and_cancel_require_stripe(): void

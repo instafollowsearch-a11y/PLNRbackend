@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Http\Requests\Concerns\NormalizesEmail;
+use App\Services\Settings\AppSettings;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StorePlanShareRequest extends FormRequest
@@ -17,6 +18,12 @@ class StorePlanShareRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->normalizeEmailInput();
+
+        if (! app(AppSettings::class)->planInviteSmsEnabled()) {
+            $this->merge(['phone' => null]);
+
+            return;
+        }
 
         $phone = $this->input('phone');
 
@@ -41,9 +48,13 @@ class StorePlanShareRequest extends FormRequest
      */
     public function rules(): array
     {
+        $smsEnabled = app(AppSettings::class)->planInviteSmsEnabled();
+
         return [
             'email' => ['required', 'string', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'regex:/^\+[1-9]\d{7,14}$/'],
+            'phone' => $smsEnabled
+                ? ['nullable', 'string', 'regex:/^\+[1-9]\d{7,14}$/']
+                : ['nullable'],
         ];
     }
 
