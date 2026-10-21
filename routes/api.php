@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\SettingsController as AdminSettingsControl
 use App\Http\Controllers\Api\V1\Admin\StatsController as AdminStatsController;
 use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\Admin\VisitController as AdminVisitController;
+use App\Http\Controllers\Api\V1\AppleNotificationController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BillingConfigController;
 use App\Http\Controllers\Api\V1\BillingController;
@@ -46,6 +47,7 @@ Route::prefix('v1')->group(function (): void {
         ->middleware('throttle:ai');
 
     Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
+    Route::post('/billing/apple/notifications', [AppleNotificationController::class, 'handle']);
 
     Route::get('/plan-shares/{token}', [PlanShareController::class, 'show']);
 

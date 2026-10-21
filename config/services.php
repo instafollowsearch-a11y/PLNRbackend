@@ -66,6 +66,7 @@ return [
         'private_key' => env('APPLE_IAP_PRIVATE_KEY'),
         'bundle_id' => env('APPLE_IAP_BUNDLE_ID', 'com.myplnr.app'),
         'product_id' => env('APPLE_IAP_PRODUCT_ID', 'plnr_pro_monthly'),
+        'jws_root_pem' => env('APPLE_IAP_JWS_ROOT_PEM', resource_path('certs/AppleRootCA-G3.pem')),
     ],
 
     'pro' => [

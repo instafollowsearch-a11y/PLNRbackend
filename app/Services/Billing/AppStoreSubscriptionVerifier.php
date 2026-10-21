@@ -4,6 +4,7 @@ namespace App\Services\Billing;
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class AppStoreSubscriptionVerifier implements AppleSubscriptionVerifier
 {
@@ -11,20 +12,38 @@ class AppStoreSubscriptionVerifier implements AppleSubscriptionVerifier
 
     private const SANDBOX = 'https://api.storekit-sandbox.apple.com';
 
+    public function __construct(
+        private readonly AppleJwsVerifier $jws,
+    ) {}
+
     public function verify(string $productId, string $transactionId): AppleSubscriptionReceipt
     {
         $token = $this->token();
         $response = $this->fetch(self::PRODUCTION, $token, $transactionId);
+        $willRetrySandbox = $this->shouldTrySandbox($response);
 
-        if ($this->transactionMissing($response)) {
+        $this->logAppleCall('production', $response, $willRetrySandbox);
+
+        if ($willRetrySandbox) {
             $response = $this->fetch(self::SANDBOX, $token, $transactionId);
+            $this->logAppleCall('sandbox', $response, false);
         }
 
         if (! $response->successful()) {
+            Log::warning('apple.iap.verify.http_error', [
+                'outcome' => 'http_error',
+                'http_status' => $response->status(),
+                'error_code' => $this->errorCode($response),
+            ]);
             throw new AppleBillingException('This App Store purchase could not be verified.');
         }
 
-        return $this->receipt($response->json(), $productId);
+        $receipt = $this->receipt($response->json(), $productId);
+        Log::info('apple.iap.verify.outcome', [
+            'outcome' => $receipt->active ? 'active' : 'inactive',
+        ]);
+
+        return $receipt;
     }
 
     private function fetch(string $origin, string $token, string $transactionId): Response
@@ -34,13 +53,45 @@ class AppStoreSubscriptionVerifier implements AppleSubscriptionVerifier
             ->get($origin.'/inApps/v1/subscriptions/'.rawurlencode($transactionId));
     }
 
-    private function transactionMissing(Response $response): bool
+    private function shouldTrySandbox(Response $response): bool
     {
-        if ($response->status() === 404) {
+        if ($response->successful()) {
+            return false;
+        }
+
+        if ($response->status() === 401 || $response->status() === 404) {
             return true;
         }
 
         return (int) $response->json('errorCode') === 4040010;
+    }
+
+    private function logAppleCall(string $host, Response $response, bool $willRetrySandbox): void
+    {
+        $context = [
+            'host' => $host,
+            'http_status' => $response->status(),
+            'error_code' => $this->errorCode($response),
+            'will_retry_sandbox' => $willRetrySandbox,
+        ];
+
+        if ($response->successful()) {
+            Log::info('apple.iap.verify.call', $context);
+
+            return;
+        }
+
+        Log::warning('apple.iap.verify.call', $context);
+    }
+
+    private function errorCode(Response $response): ?int
+    {
+        $code = $response->json('errorCode');
+        if ($code === null || $code === '') {
+            return null;
+        }
+
+        return (int) $code;
     }
 
     private function receipt(mixed $payload, string $productId): AppleSubscriptionReceipt
@@ -63,7 +114,7 @@ class AppStoreSubscriptionVerifier implements AppleSubscriptionVerifier
                     continue;
                 }
 
-                $signed = $this->decodeJws((string) ($transaction['signedTransactionInfo'] ?? ''));
+                $signed = $this->jws->decode((string) ($transaction['signedTransactionInfo'] ?? ''));
                 if ($signed === null) {
                     continue;
                 }
@@ -106,26 +157,6 @@ class AppStoreSubscriptionVerifier implements AppleSubscriptionVerifier
         }
 
         return now()->setTimestamp((int) floor($millis / 1000));
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function decodeJws(string $jws): ?array
-    {
-        $parts = explode('.', $jws);
-        if (count($parts) < 2) {
-            return null;
-        }
-
-        $json = base64_decode($this->padBase64(strtr($parts[1], '-_', '+/')), true);
-        if ($json === false) {
-            return null;
-        }
-
-        $payload = json_decode($json, true);
-
-        return is_array($payload) ? $payload : null;
     }
 
     private function token(): string
@@ -251,12 +282,5 @@ class AppStoreSubscriptionVerifier implements AppleSubscriptionVerifier
     private function base64Url(string $value): string
     {
         return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
-    }
-
-    private function padBase64(string $value): string
-    {
-        $remainder = strlen($value) % 4;
-
-        return $remainder === 0 ? $value : $value.str_repeat('=', 4 - $remainder);
     }
 }
