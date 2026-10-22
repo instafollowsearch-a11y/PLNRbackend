@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StorePlanShareRequest;
 use App\Http\Resources\PlanSessionResource;
+use App\Models\PlanMember;
 use App\Models\PlanSession;
 use App\Models\PlanShare;
 use App\Models\User;
@@ -17,6 +18,44 @@ class PlanShareController extends Controller
     public function __construct(
         private readonly PlanShareService $shares,
     ) {}
+
+    public function index(Request $request, PlanSession $planSession): JsonResponse
+    {
+        $this->authorize('share', $planSession);
+
+        $planSession->loadMissing(['shares', 'members.user']);
+
+        $pending = $planSession->shares
+            ->filter(fn (PlanShare $share) => $share->status === PlanShare::STATUS_PENDING)
+            ->map(fn (PlanShare $share) => [
+                'token' => $share->token,
+                'invitee_email' => $share->invitee_email,
+                'invitee_phone' => $share->invitee_phone,
+                'status' => $share->status,
+                'created_at' => $share->created_at?->toIso8601String(),
+                'expires_at' => $share->expires_at?->toIso8601String(),
+            ])
+            ->values();
+
+        $members = $planSession->members
+            ->filter(fn ($member) => $member->role === PlanMember::ROLE_VIEWER && $member->user !== null)
+            ->map(fn ($member) => [
+                'user_id' => $member->user_id,
+                'name' => $member->user?->name,
+                'email' => $member->user?->email,
+                'role' => $member->role,
+                'accepted_at' => $member->accepted_at?->toIso8601String(),
+            ])
+            ->values();
+
+        return response()->json([
+            'data' => [
+                'pending' => $pending,
+                'members' => $members,
+            ],
+            'message' => 'Plan shares retrieved.',
+        ]);
+    }
 
     public function store(StorePlanShareRequest $request, PlanSession $planSession): JsonResponse
     {

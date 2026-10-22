@@ -76,6 +76,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/plan-sessions', [PlanSessionController::class, 'index']);
         Route::post('/plan-sessions/{planSession}/claim', [PlanSessionController::class, 'claim']);
         Route::post('/plan-shares/{token}/accept', [PlanShareController::class, 'accept']);
+        Route::get('/plan-sessions/{planSession}/shares', [PlanShareController::class, 'index']);
         Route::post('/plan-sessions/{planSession}/shares', [PlanShareController::class, 'store'])
             ->middleware('throttle:email');
         Route::post('/billing/checkout-session', [BillingController::class, 'checkout'])

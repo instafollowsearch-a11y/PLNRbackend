@@ -334,6 +334,58 @@ class PlanShareApiTest extends TestCase
         Mail::assertNothingSent();
     }
 
+    public function test_owner_can_list_pending_and_accepted_shares(): void
+    {
+        Mail::fake();
+
+        $owner = User::factory()->pro()->create();
+        $invitee = User::factory()->create(['email' => 'listed@plnr.test']);
+        $session = $this->ownedCompletedSession($owner);
+
+        Sanctum::actingAs($owner);
+        $shareResponse = $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'listed@plnr.test',
+        ])->assertCreated();
+
+        $token = $shareResponse->json('data.share.token');
+
+        $this->getJson("/api/v1/plan-sessions/{$session->uuid}/shares")
+            ->assertOk()
+            ->assertJsonPath('data.pending.0.invitee_email', 'listed@plnr.test')
+            ->assertJsonCount(0, 'data.members');
+
+        Sanctum::actingAs($invitee);
+        $this->postJson("/api/v1/plan-shares/{$token}/accept")->assertOk();
+
+        Sanctum::actingAs($owner);
+        $this->getJson("/api/v1/plan-sessions/{$session->uuid}/shares")
+            ->assertOk()
+            ->assertJsonCount(0, 'data.pending')
+            ->assertJsonPath('data.members.0.email', 'listed@plnr.test')
+            ->assertJsonPath('data.members.0.role', PlanMember::ROLE_VIEWER)
+            ->assertJsonMissing(['email' => $owner->email]);
+    }
+
+    public function test_viewer_cannot_list_shares(): void
+    {
+        Mail::fake();
+
+        $owner = User::factory()->pro()->create();
+        $viewer = User::factory()->create(['email' => 'viewer@plnr.test']);
+        $session = $this->ownedCompletedSession($owner);
+
+        Sanctum::actingAs($owner);
+        $token = $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'viewer@plnr.test',
+        ])->assertCreated()->json('data.share.token');
+
+        Sanctum::actingAs($viewer);
+        $this->postJson("/api/v1/plan-shares/{$token}/accept")->assertOk();
+
+        $this->getJson("/api/v1/plan-sessions/{$session->uuid}/shares")
+            ->assertForbidden();
+    }
+
     private function ownedCompletedSession(User $owner): PlanSession
     {
         $planType = PlanType::factory()->create(['slug' => 'night_out']);
