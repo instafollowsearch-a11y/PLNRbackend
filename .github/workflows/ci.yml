@@ -1,9 +1,9 @@
 name: CI
 
+# Manual only — automatic push/PR runs were flooding failure emails across
+# live / origin / production remotes. Re-enable push triggers when CI is green.
 on:
-  push:
-    branches: [main, master]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
