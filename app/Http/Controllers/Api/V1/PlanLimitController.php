@@ -13,11 +13,17 @@ class PlanLimitController extends Controller
     {
         $user = $request->user();
         $ip = $request->ip();
+        $isPro = (bool) $user?->isPro();
+        $limit = $quota->monthlyLimit();
+        $used = $quota->usedThisMonth($user, $ip);
 
         return response()->json([
             'data' => [
-                'limit' => $quota->monthlyLimit(),
-                'remaining' => $quota->remainingThisMonth($user, $ip),
+                'limit' => $limit,
+                'used' => $used,
+                'remaining' => $isPro ? null : $quota->remainingThisMonth($user, $ip),
+                'is_pro' => $isPro,
+                'unlimited' => $isPro,
                 'window' => 'month',
             ],
             'message' => 'Plan limits retrieved.',

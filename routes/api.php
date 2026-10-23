@@ -138,6 +138,7 @@ Route::prefix('v1')->group(function (): void {
     // auth.optional so Bearer tokens resolve for owners/viewers; guests still access unclaimed sessions.
     Route::middleware(['auth.optional', 'plan.session'])->prefix('plan-sessions/{planSession}')->group(function (): void {
         Route::get('/', [PlanSessionController::class, 'show']);
+        Route::patch('/answers', [PlanSessionController::class, 'updateAnswers']);
         Route::middleware('throttle:ai')->group(function (): void {
             Route::post('/suggestions', [PlanSessionController::class, 'suggestions']);
             Route::post('/suggestions/{suggestion}/plan', [PlanSessionController::class, 'draftPlan']);

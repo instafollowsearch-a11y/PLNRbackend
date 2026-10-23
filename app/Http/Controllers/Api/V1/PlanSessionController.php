@@ -7,10 +7,12 @@ use App\Http\Requests\Api\V1\RefinePlanSessionRequest;
 use App\Http\Requests\Api\V1\SelectSuggestionRequest;
 use App\Http\Requests\Api\V1\SendItineraryEmailRequest;
 use App\Http\Requests\Api\V1\StorePlanSessionRequest;
+use App\Http\Requests\Api\V1\UpdatePlanSessionAnswersRequest;
 use App\Http\Resources\ItineraryResource;
 use App\Http\Resources\PlanSessionResource;
 use App\Http\Resources\SuggestionResource;
 use App\Mail\ItineraryMail;
+use App\Models\PlanMember;
 use App\Models\PlanSession;
 use App\Models\PlanType;
 use App\Models\Suggestion;
@@ -23,6 +25,7 @@ use App\Support\Geo\CoordinateTimeZone;
 use App\Support\Http\RunAfterResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -41,11 +44,20 @@ class PlanSessionController extends Controller
         $user = $request->user();
         $memberSessionIds = $user->planMemberships()->pluck('plan_session_id');
 
-        $paginator = PlanSession::query()
+        $visibleQuery = PlanSession::query()
             ->where(function ($query) use ($user, $memberSessionIds): void {
                 $query->where('user_id', $user->id)
                     ->orWhereIn('id', $memberSessionIds);
-            })
+            });
+
+        $total = (clone $visibleQuery)->count();
+        $sent = (clone $visibleQuery)->where('status', PlanSession::STATUS_COMPLETED)->count();
+        $active = max(0, $total - $sent);
+        $shared = $user->planMemberships()
+            ->where('role', PlanMember::ROLE_VIEWER)
+            ->count();
+
+        $paginator = (clone $visibleQuery)
             ->with(['planType', 'itinerary', 'user'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
@@ -58,6 +70,12 @@ class PlanSessionController extends Controller
                     'last_page' => $paginator->lastPage(),
                     'per_page' => $paginator->perPage(),
                     'total' => $paginator->total(),
+                    'summary' => [
+                        'total' => $total,
+                        'active' => $active,
+                        'sent' => $sent,
+                        'shared' => $shared,
+                    ],
                 ],
             ],
             'message' => 'Plan sessions retrieved.',
@@ -127,6 +145,45 @@ class PlanSessionController extends Controller
                 'plan_session' => new PlanSessionResource($planSession),
             ],
             'message' => 'Plan session retrieved.',
+        ]);
+    }
+
+    /**
+     * Replace answers on an existing session (e.g. past event date → new dates).
+     * Resets generation progress so suggestions can be regenerated. Does not consume quota.
+     */
+    public function updateAnswers(
+        UpdatePlanSessionAnswersRequest $request,
+        PlanSession $planSession,
+    ): JsonResponse {
+        $this->authorize('update', $planSession);
+
+        $answers = $request->input('answers');
+        $normalized = is_array($answers)
+            ? app(CoordinateTimeZone::class)->applyToAnswers($answers)
+            : $answers;
+
+        DB::transaction(function () use ($planSession, $normalized, $request): void {
+            $planSession->suggestions()->delete();
+            $planSession->itinerary()?->delete();
+
+            $planSession->update([
+                'answers' => $normalized,
+                'city' => $request->resolvedCity(),
+                'status' => PlanSession::STATUS_READY,
+                'generation_status' => null,
+                'generation_error' => null,
+                'refinement_messages' => [],
+            ]);
+        });
+
+        $planSession->refresh()->load(['planType', 'suggestions', 'itinerary', 'user']);
+
+        return response()->json([
+            'data' => [
+                'plan_session' => new PlanSessionResource($planSession),
+            ],
+            'message' => 'Plan session answers updated.',
         ]);
     }
 

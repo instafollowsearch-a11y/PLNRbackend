@@ -509,4 +509,70 @@ class PlanSessionApiTest extends TestCase
 
         return '';
     }
+
+    public function test_plan_sessions_list_includes_summary_counts(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        PlanSession::factory()->create([
+            'user_id' => $user->id,
+            'plan_type_id' => $this->planTypes['night_out']->id,
+            'status' => PlanSession::STATUS_READY,
+        ]);
+        PlanSession::factory()->create([
+            'user_id' => $user->id,
+            'plan_type_id' => $this->planTypes['date_night']->id,
+            'status' => PlanSession::STATUS_COMPLETED,
+        ]);
+
+        $this->getJson('/api/v1/plan-sessions')
+            ->assertOk()
+            ->assertJsonPath('data.meta.summary.total', 2)
+            ->assertJsonPath('data.meta.summary.active', 1)
+            ->assertJsonPath('data.meta.summary.sent', 1)
+            ->assertJsonPath('data.meta.summary.shared', 0);
+    }
+
+    public function test_owner_can_update_answers_and_reset_progress(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $session = PlanSession::factory()->create([
+            'user_id' => $user->id,
+            'plan_type_id' => $this->planTypes['night_out']->id,
+            'status' => PlanSession::STATUS_SUGGESTIONS,
+            'city' => 'Austin',
+            'answers' => $this->validAnswers('night_out'),
+            'refinement_messages' => [
+                ['role' => 'user', 'content' => 'more jazz', 'created_at' => now()->toIso8601String()],
+            ],
+        ]);
+
+        Suggestion::factory()->create([
+            'plan_session_id' => $session->id,
+        ]);
+        Itinerary::factory()->create([
+            'plan_session_id' => $session->id,
+        ]);
+
+        $nextAnswers = $this->validAnswers('night_out');
+        $nextAnswers['dates'] = 'Saturday, November 15, 2026';
+        $nextAnswers['city'] = 'Dallas';
+
+        $this->patchJson("/api/v1/plan-sessions/{$session->uuid}/answers", [
+            'answers' => $nextAnswers,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.plan_session.status', PlanSession::STATUS_READY)
+            ->assertJsonPath('data.plan_session.city', 'Dallas')
+            ->assertJsonPath('data.plan_session.answers.dates', 'Saturday, November 15, 2026');
+
+        $session->refresh();
+        $this->assertSame(PlanSession::STATUS_READY, $session->status);
+        $this->assertSame([], $session->refinement_messages ?? []);
+        $this->assertSame(0, $session->suggestions()->count());
+        $this->assertNull($session->itinerary);
+    }
 }

@@ -236,7 +236,10 @@ class PlanQuotaAndAdminApiTest extends TestCase
         $this->getJson('/api/v1/plan-limits')
             ->assertOk()
             ->assertJsonPath('data.limit', 5)
+            ->assertJsonPath('data.used', 0)
             ->assertJsonPath('data.remaining', 5)
+            ->assertJsonPath('data.is_pro', false)
+            ->assertJsonPath('data.unlimited', false)
             ->assertJsonPath('data.window', 'month');
     }
 }
