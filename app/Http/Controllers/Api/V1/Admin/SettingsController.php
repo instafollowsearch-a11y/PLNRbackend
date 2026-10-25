@@ -45,6 +45,7 @@ class SettingsController extends Controller
         $this->applyOptionalString($request, $settings, 'mail_from_address', AppSettings::MAIL_FROM_ADDRESS, 'clear_mail_from_address');
         $this->applyOptionalString($request, $settings, 'mail_from_name', AppSettings::MAIL_FROM_NAME, 'clear_mail_from_name');
         $this->applyOptionalString($request, $settings, 'booking_ops_email', AppSettings::BOOKING_OPS_EMAIL, 'clear_booking_ops_email');
+        $this->applyOptionalString($request, $settings, 'support_email', AppSettings::SUPPORT_EMAIL, 'clear_support_email');
 
         if ($request->boolean('clear_rate_limit_ai_per_hour')) {
             $settings->forget(AppSettings::RATE_LIMIT_AI_PER_HOUR);

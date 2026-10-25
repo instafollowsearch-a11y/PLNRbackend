@@ -27,6 +27,9 @@ class PlanShareController extends Controller
 
         $pending = $planSession->shares
             ->filter(fn (PlanShare $share) => $share->status === PlanShare::STATUS_PENDING)
+            ->sortByDesc(fn (PlanShare $share) => $share->id)
+            ->unique(fn (PlanShare $share) => strtolower(trim((string) $share->invitee_email)))
+            ->values()
             ->map(fn (PlanShare $share) => [
                 'token' => $share->token,
                 'invitee_email' => $share->invitee_email,

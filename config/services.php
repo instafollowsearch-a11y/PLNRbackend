@@ -54,6 +54,10 @@ return [
         'ops_email' => env('BOOKING_OPS_EMAIL'),
     ],
 
+    'support' => [
+        'email' => env('SUPPORT_EMAIL', 'myplnrapp@gmail.com'),
+    ],
+
     'google_play' => [
         'package_name' => env('GOOGLE_PLAY_PACKAGE_NAME', 'com.plnr.app'),
         'product_id' => env('GOOGLE_PLAY_PRODUCT_ID', 'plnr_pro_monthly'),

@@ -49,14 +49,29 @@ class PlanShareService
 
         $planSession->ensureOwnerMembership();
 
-        $share = PlanShare::query()->create([
-            'plan_session_id' => $planSession->id,
-            'inviter_user_id' => $inviter->id,
-            'invitee_email' => $inviteeEmail,
-            'invitee_phone' => $inviteePhone,
-            'status' => PlanShare::STATUS_PENDING,
-            'expires_at' => now()->addDays(14),
-        ]);
+        $existing = PlanShare::query()
+            ->where('plan_session_id', $planSession->id)
+            ->where('invitee_email', $inviteeEmail)
+            ->where('status', PlanShare::STATUS_PENDING)
+            ->latest('id')
+            ->first();
+
+        if ($existing !== null) {
+            $existing->forceFill([
+                'invitee_phone' => $inviteePhone ?? $existing->invitee_phone,
+                'expires_at' => now()->addDays(14),
+            ])->save();
+            $share = $existing;
+        } else {
+            $share = PlanShare::query()->create([
+                'plan_session_id' => $planSession->id,
+                'inviter_user_id' => $inviter->id,
+                'invitee_email' => $inviteeEmail,
+                'invitee_phone' => $inviteePhone,
+                'status' => PlanShare::STATUS_PENDING,
+                'expires_at' => now()->addDays(14),
+            ]);
+        }
 
         $share->load(['planSession.planType', 'inviter']);
 

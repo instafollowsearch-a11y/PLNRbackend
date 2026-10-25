@@ -7,11 +7,15 @@ use App\Models\PlanSession;
 use App\Models\PlanShare;
 use App\Models\PlanType;
 use App\Models\User;
+use App\Services\Auth\FetchesGoogleBirthday;
+use App\Services\Auth\FetchesGoogleUserInfo;
 use App\Services\Auth\VerifiesGoogleIdToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Tests\Fakes\FakeGoogleBirthdayFetcher;
 use Tests\Fakes\FakeGoogleIdTokenVerifier;
+use Tests\Fakes\FakeGoogleUserInfoFetcher;
 use Tests\TestCase;
 
 class GoogleSignInTest extends TestCase
@@ -20,12 +24,20 @@ class GoogleSignInTest extends TestCase
 
     private FakeGoogleIdTokenVerifier $google;
 
+    private FakeGoogleBirthdayFetcher $birthdays;
+
+    private FakeGoogleUserInfoFetcher $userInfo;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->google = new FakeGoogleIdTokenVerifier(null);
+        $this->birthdays = new FakeGoogleBirthdayFetcher(null);
+        $this->userInfo = new FakeGoogleUserInfoFetcher(null);
         $this->app->instance(VerifiesGoogleIdToken::class, $this->google);
+        $this->app->instance(FetchesGoogleBirthday::class, $this->birthdays);
+        $this->app->instance(FetchesGoogleUserInfo::class, $this->userInfo);
     }
 
     public function test_new_google_user_is_created_without_a_password(): void
@@ -39,6 +51,7 @@ class GoogleSignInTest extends TestCase
 
         $this->postJson('/api/v1/auth/google', [
             'id_token' => 'valid-token',
+            'date_of_birth' => '1995-06-15',
         ])->assertCreated()
             ->assertJsonPath('data.user.email', 'ada@plnr.test')
             ->assertJsonPath('data.user.name', 'Ada Lovelace')
@@ -49,7 +62,105 @@ class GoogleSignInTest extends TestCase
         $this->assertSame('google-sub-1', $user->google_sub);
         $this->assertNull($user->password);
         $this->assertNotNull($user->email_verified_at);
+        $this->assertSame('1995-06-15', $user->date_of_birth?->toDateString());
         $this->assertNotEmpty($user->tokens()->first());
+    }
+
+    public function test_new_google_user_requires_date_of_birth(): void
+    {
+        $this->fakeGoogle([
+            'sub' => 'google-sub-dob',
+            'email' => 'needsdob@plnr.test',
+            'email_verified' => true,
+            'name' => 'Needs Dob',
+        ]);
+
+        $this->postJson('/api/v1/auth/google', [
+            'id_token' => 'valid-token',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_of_birth']);
+
+        $this->assertDatabaseCount('users', 0);
+    }
+
+    public function test_new_google_user_uses_birthday_from_google_access_token(): void
+    {
+        $this->fakeGoogle([
+            'sub' => 'google-sub-people',
+            'email' => 'people@plnr.test',
+            'email_verified' => true,
+            'name' => 'People Birthday',
+        ]);
+        $this->birthdays->birthday = '1998-03-21';
+
+        $this->postJson('/api/v1/auth/google', [
+            'id_token' => 'valid-token',
+            'access_token' => 'people-access-token',
+        ])->assertCreated()
+            ->assertJsonPath('data.user.email', 'people@plnr.test');
+
+        $user = User::query()->where('email', 'people@plnr.test')->first();
+        $this->assertNotNull($user);
+        $this->assertSame('1998-03-21', $user->date_of_birth?->toDateString());
+    }
+
+    public function test_new_google_user_can_sign_up_with_access_token_only(): void
+    {
+        $this->userInfo->payload = [
+            'sub' => 'google-sub-oauth',
+            'email' => 'oauth@plnr.test',
+            'email_verified' => true,
+            'name' => 'OAuth User',
+        ];
+        $this->birthdays->birthday = '1992-11-08';
+
+        $this->postJson('/api/v1/auth/google', [
+            'access_token' => 'oauth-access-token',
+        ])->assertCreated()
+            ->assertJsonPath('data.user.email', 'oauth@plnr.test')
+            ->assertJsonPath('data.user.name', 'OAuth User');
+
+        $user = User::query()->where('email', 'oauth@plnr.test')->first();
+        $this->assertNotNull($user);
+        $this->assertSame('google-sub-oauth', $user->google_sub);
+        $this->assertSame('1992-11-08', $user->date_of_birth?->toDateString());
+    }
+
+    public function test_new_google_user_under_thirteen_from_google_birthday_is_rejected(): void
+    {
+        $this->fakeGoogle([
+            'sub' => 'google-sub-young-people',
+            'email' => 'youngpeople@plnr.test',
+            'email_verified' => true,
+            'name' => 'Too Young People',
+        ]);
+        $this->birthdays->birthday = now()->subYears(12)->toDateString();
+
+        $this->postJson('/api/v1/auth/google', [
+            'id_token' => 'valid-token',
+            'access_token' => 'people-access-token',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_of_birth']);
+
+        $this->assertDatabaseCount('users', 0);
+    }
+
+    public function test_new_google_user_under_thirteen_is_rejected(): void
+    {
+        $this->fakeGoogle([
+            'sub' => 'google-sub-young',
+            'email' => 'young@plnr.test',
+            'email_verified' => true,
+            'name' => 'Too Young',
+        ]);
+
+        $this->postJson('/api/v1/auth/google', [
+            'id_token' => 'valid-token',
+            'date_of_birth' => now()->subYears(12)->toDateString(),
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_of_birth']);
+
+        $this->assertDatabaseCount('users', 0);
     }
 
     public function test_existing_email_is_linked_and_keeps_its_password(): void
@@ -163,6 +274,7 @@ class GoogleSignInTest extends TestCase
         $this->postJson('/api/v1/auth/google', [
             'id_token' => 'valid-token',
             'invite_token' => $share->token,
+            'date_of_birth' => '1995-06-15',
         ])->assertCreated();
 
         $this->assertSame(PlanShare::STATUS_PENDING, $share->fresh()->status);
@@ -181,6 +293,7 @@ class GoogleSignInTest extends TestCase
         $this->postJson('/api/v1/auth/google', [
             'id_token' => 'valid-token',
             'invite_token' => $share->token,
+            'date_of_birth' => '1995-06-15',
         ])->assertCreated();
 
         $this->assertSame(PlanShare::STATUS_ACCEPTED, $share->fresh()->status);

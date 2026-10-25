@@ -30,6 +30,7 @@ class RateLimitingTest extends TestCase
         $payload = [
             'name' => 'Test User',
             'email' => 'rate-limit@example.com',
+            'date_of_birth' => '1995-06-15',
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ];

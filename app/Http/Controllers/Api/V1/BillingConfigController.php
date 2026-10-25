@@ -20,6 +20,7 @@ class BillingConfigController extends Controller
                 'stripe_fake' => $settings->stripeFake(),
                 'stripe_configured' => $settings->stripeSecret() !== null && $settings->stripeSecret() !== '',
                 'plan_invite_sms_enabled' => $settings->planInviteSmsEnabled(),
+                'support_email' => $settings->supportEmail(),
             ],
             'message' => 'Billing configuration retrieved.',
         ]);

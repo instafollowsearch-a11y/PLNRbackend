@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\GeocodeController;
 use App\Http\Controllers\Api\V1\GoogleSignInConfigController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\HotelSuggestionController;
+use App\Http\Controllers\Api\V1\InterestMatchController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PlacePhotoController;
 use App\Http\Controllers\Api\V1\PlanCardImageController;
@@ -99,6 +100,7 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('throttle:email');
             Route::post('/weekend-recommendations/{weekendRecommendation}/invite', [WeekendRecommendationController::class, 'invite'])
                 ->middleware('throttle:email');
+            Route::get('/interest-matches', [InterestMatchController::class, 'index']);
         });
 
         Route::middleware('throttle:booking')->group(function (): void {

@@ -44,6 +44,7 @@ class AuthController extends Controller
         $user = User::query()->create([
             'name' => $request->string('name')->toString(),
             'email' => Email::normalize($request->string('email')->toString()),
+            'date_of_birth' => $request->date('date_of_birth'),
             'password' => $request->string('password')->toString(),
         ]);
 
@@ -92,7 +93,14 @@ class AuthController extends Controller
 
     public function google(GoogleSignInRequest $request): JsonResponse
     {
-        $result = $this->googleSignIn->signIn($request->string('id_token')->toString());
+        $dob = $request->input('date_of_birth');
+        $idToken = $request->input('id_token');
+        $accessToken = $request->input('access_token');
+        $result = $this->googleSignIn->signIn(
+            is_string($idToken) ? $idToken : null,
+            is_string($dob) ? $dob : null,
+            is_string($accessToken) ? $accessToken : null,
+        );
 
         if ($result === null) {
             return response()->json([

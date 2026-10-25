@@ -9,7 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class ScanUserInterests
 {
-    public function __construct(private readonly InterestEventMatcher $matcher) {}
+    public function __construct(
+        private readonly InterestEventMatcher $matcher,
+        private readonly ScheduleInterestPings $interestPings,
+    ) {}
 
     public function run(): InterestScan
     {
@@ -28,6 +31,7 @@ class ScanUserInterests
             foreach ($users as $user) {
                 if (! $this->ready($user)) {
                     InterestMatch::query()->where('user_id', $user->id)->delete();
+                    $this->interestPings->syncFor($user);
                     $skipped++;
 
                     continue;
@@ -50,6 +54,8 @@ class ScanUserInterests
                         $kept++;
                     }
                 });
+
+                $this->interestPings->syncFor($user);
             }
         });
 

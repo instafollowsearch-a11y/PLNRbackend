@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Models\User;
+use App\Support\AgeGate;
 use App\Support\Email;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -11,6 +12,8 @@ class GoogleSignIn
 {
     public function __construct(
         private readonly VerifiesGoogleIdToken $tokens,
+        private readonly FetchesGoogleUserInfo $userInfo,
+        private readonly FetchesGoogleBirthday $birthdays,
     ) {}
 
     /**
@@ -18,9 +21,9 @@ class GoogleSignIn
      *
      * @throws ValidationException
      */
-    public function signIn(string $idToken): ?array
+    public function signIn(?string $idToken = null, ?string $dateOfBirth = null, ?string $accessToken = null): ?array
     {
-        $payload = $this->tokens->verify($idToken);
+        $payload = $this->resolvePayload($idToken, $accessToken);
 
         if (! is_array($payload)) {
             return null;
@@ -56,11 +59,31 @@ class GoogleSignIn
             return [$byEmail->fresh() ?? $byEmail, false];
         }
 
-        $user = DB::transaction(function () use ($payload, $sub, $email): User {
+        $dateOfBirth = is_string($dateOfBirth) ? trim($dateOfBirth) : '';
+
+        if ($dateOfBirth === '') {
+            $fromGoogle = $this->birthdays->fetch($accessToken);
+            $dateOfBirth = is_string($fromGoogle) ? trim($fromGoogle) : '';
+        }
+
+        if ($dateOfBirth === '') {
+            throw ValidationException::withMessages([
+                'date_of_birth' => ['Enter your date of birth to create an account.'],
+            ]);
+        }
+
+        if (! AgeGate::isOldEnough($dateOfBirth)) {
+            throw ValidationException::withMessages([
+                'date_of_birth' => ['You must be at least '.AgeGate::MINIMUM_AGE.' years old to use PLNR.'],
+            ]);
+        }
+
+        $user = DB::transaction(function () use ($payload, $sub, $email, $dateOfBirth): User {
             $user = new User;
             $user->forceFill([
                 'name' => $this->nameFrom($payload),
                 'email' => $email,
+                'date_of_birth' => $dateOfBirth,
                 'google_sub' => $sub,
                 'password' => null,
                 'email_verified_at' => now(),
@@ -71,6 +94,22 @@ class GoogleSignIn
         });
 
         return [$user, true];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolvePayload(?string $idToken, ?string $accessToken): ?array
+    {
+        $id = is_string($idToken) ? trim($idToken) : '';
+
+        if ($id !== '') {
+            $payload = $this->tokens->verify($id);
+
+            return is_array($payload) ? $payload : null;
+        }
+
+        return $this->userInfo->fetch($accessToken);
     }
 
     /**

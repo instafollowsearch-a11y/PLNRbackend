@@ -46,6 +46,8 @@ class AppSettings
 
     public const BOOKING_OPS_EMAIL = 'booking_ops_email';
 
+    public const SUPPORT_EMAIL = 'support_email';
+
     public const RATE_LIMIT_AI_PER_HOUR = 'rate_limit_ai_per_hour';
 
     public const PRO_MONTHLY_PRICE_CENTS = 'pro_monthly_price_cents';
@@ -94,6 +96,7 @@ class AppSettings
         self::MAIL_FROM_ADDRESS,
         self::MAIL_FROM_NAME,
         self::BOOKING_OPS_EMAIL,
+        self::SUPPORT_EMAIL,
         self::RATE_LIMIT_AI_PER_HOUR,
         self::PRO_MONTHLY_PRICE_CENTS,
         self::PRO_CURRENCY,
@@ -313,6 +316,13 @@ class AppSettings
             config('services.booking.ops_email'),
         );
         $settings[self::BOOKING_OPS_EMAIL.'_env'] = config('services.booking.ops_email');
+
+        $settings[self::SUPPORT_EMAIL] = $this->supportEmail();
+        $settings[self::SUPPORT_EMAIL.'_source'] = $this->sourceFor(
+            self::SUPPORT_EMAIL,
+            config('services.support.email'),
+        );
+        $settings[self::SUPPORT_EMAIL.'_env'] = config('services.support.email');
 
         $settings[self::RATE_LIMIT_AI_PER_HOUR] = $this->rateLimitAiPerHour();
         $settings[self::RATE_LIMIT_AI_PER_HOUR.'_source'] = $this->sourceFor(
@@ -714,6 +724,17 @@ class AppSettings
             self::BOOKING_OPS_EMAIL,
             is_string($fallback) ? $fallback : null,
         );
+    }
+
+    public function supportEmail(): string
+    {
+        $fallback = config('services.support.email', 'myplnrapp@gmail.com');
+        $resolved = $this->resolveString(
+            self::SUPPORT_EMAIL,
+            is_string($fallback) ? $fallback : 'myplnrapp@gmail.com',
+        );
+
+        return $resolved ?? 'myplnrapp@gmail.com';
     }
 
     public function rateLimitAiPerHour(): int

@@ -15,6 +15,7 @@ class RegistrationLoginTest extends TestCase
         $registerResponse = $this->postJson('/api/v1/auth/register', [
             'name' => 'PLNR User',
             'email' => 'user@plnr.test',
+            'date_of_birth' => '1995-06-15',
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ]);
@@ -75,6 +76,7 @@ class RegistrationLoginTest extends TestCase
         $this->postJson('/api/v1/auth/register', [
             'name' => 'Ada',
             'email' => 'Ada.Lovelace@Plnr.Test',
+            'date_of_birth' => '1995-06-15',
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ])
@@ -88,6 +90,7 @@ class RegistrationLoginTest extends TestCase
         $this->postJson('/api/v1/auth/register', [
             'name' => 'Ada Again',
             'email' => 'ADA.LOVELACE@PLNR.TEST',
+            'date_of_birth' => '1995-06-15',
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ])->assertUnprocessable();
@@ -103,5 +106,18 @@ class RegistrationLoginTest extends TestCase
     public function test_unauthenticated_user_endpoint_returns_unauthorized(): void
     {
         $this->getJson('/api/v1/user')->assertUnauthorized();
+    }
+
+    public function test_register_rejects_users_under_thirteen(): void
+    {
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Too Young',
+            'email' => 'young@plnr.test',
+            'date_of_birth' => now()->subYears(12)->toDateString(),
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_of_birth']);
     }
 }

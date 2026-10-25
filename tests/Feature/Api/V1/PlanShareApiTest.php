@@ -96,6 +96,7 @@ class PlanShareApiTest extends TestCase
         $this->postJson('/api/v1/auth/register', [
             'name' => 'New Friend',
             'email' => 'newfriend@plnr.test',
+            'date_of_birth' => '1995-06-15',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'invite_token' => $share->token,
@@ -384,6 +385,29 @@ class PlanShareApiTest extends TestCase
 
         $this->getJson("/api/v1/plan-sessions/{$session->uuid}/shares")
             ->assertForbidden();
+    }
+
+    public function test_listing_pending_shares_dedupes_the_same_email(): void
+    {
+        Mail::fake();
+
+        $owner = User::factory()->pro()->create();
+        $session = $this->ownedCompletedSession($owner);
+
+        Sanctum::actingAs($owner);
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'dup@plnr.test',
+        ])->assertCreated();
+        $this->postJson("/api/v1/plan-sessions/{$session->uuid}/shares", [
+            'email' => 'Dup@Plnr.Test',
+        ])->assertCreated();
+
+        $this->getJson("/api/v1/plan-sessions/{$session->uuid}/shares")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.pending')
+            ->assertJsonPath('data.pending.0.invitee_email', 'dup@plnr.test');
+
+        $this->assertSame(1, PlanShare::query()->where('plan_session_id', $session->id)->count());
     }
 
     private function ownedCompletedSession(User $owner): PlanSession

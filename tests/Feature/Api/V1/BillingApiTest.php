@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Models\User;
+use App\Services\Settings\AppSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Sanctum;
@@ -33,7 +34,38 @@ class BillingApiTest extends TestCase
             ->assertJsonPath('data.pro_monthly_price_cents', 999)
             ->assertJsonPath('data.pro_currency', 'usd')
             ->assertJsonPath('data.stripe_fake', true)
-            ->assertJsonPath('data.plan_invite_sms_enabled', false);
+            ->assertJsonPath('data.plan_invite_sms_enabled', false)
+            ->assertJsonPath('data.support_email', 'myplnrapp@gmail.com');
+    }
+
+    public function test_admin_can_override_support_email_for_billing_config(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson('/api/v1/admin/settings', [
+            'support_email' => 'help@example.com',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.settings.support_email', 'help@example.com')
+            ->assertJsonPath('data.settings.support_email_source', 'admin');
+
+        $this->assertSame('help@example.com', app(AppSettings::class)->supportEmail());
+
+        auth()->forgetGuards();
+
+        $this->getJson('/api/v1/billing-config')
+            ->assertOk()
+            ->assertJsonPath('data.support_email', 'help@example.com');
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->patchJson('/api/v1/admin/settings', [
+            'clear_support_email' => true,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.settings.support_email', 'myplnrapp@gmail.com');
+
+        $this->assertSame('myplnrapp@gmail.com', app(AppSettings::class)->supportEmail());
     }
 
     public function test_portal_and_cancel_require_stripe(): void
