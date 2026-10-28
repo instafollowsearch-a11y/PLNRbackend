@@ -44,7 +44,6 @@ class AuthController extends Controller
         $user = User::query()->create([
             'name' => $request->string('name')->toString(),
             'email' => Email::normalize($request->string('email')->toString()),
-            'date_of_birth' => $request->date('date_of_birth'),
             'password' => $request->string('password')->toString(),
         ]);
 

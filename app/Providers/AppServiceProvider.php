@@ -6,7 +6,6 @@ use App\Mail\ResetPasswordMail;
 use App\Models\User;
 use App\Services\AI\AiChatClient;
 use App\Services\AI\AnthropicClient;
-use App\Services\Auth\FetchesGoogleBirthday;
 use App\Services\Auth\FetchesGoogleUserInfo;
 use App\Services\Auth\GoogleIdTokenVerifier;
 use App\Services\Auth\GooglePeopleBirthdayFetcher;
@@ -45,7 +44,6 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(SendsPlanInviteSms::class, TwilioPlanInviteSms::class);
         $this->app->singleton(VerifiesGoogleIdToken::class, GoogleIdTokenVerifier::class);
         $this->app->singleton(FetchesGoogleUserInfo::class, GoogleUserInfoFetcher::class);
-        $this->app->singleton(FetchesGoogleBirthday::class, GooglePeopleBirthdayFetcher::class);
         $this->app->singleton(PlaySubscriptionVerifier::class, GooglePlaySubscriptionVerifier::class);
         $this->app->singleton(AppleSubscriptionVerifier::class, AppStoreSubscriptionVerifier::class);
 

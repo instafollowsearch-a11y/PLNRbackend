@@ -13,7 +13,6 @@ class GoogleSignIn
     public function __construct(
         private readonly VerifiesGoogleIdToken $tokens,
         private readonly FetchesGoogleUserInfo $userInfo,
-        private readonly FetchesGoogleBirthday $birthdays,
     ) {}
 
     /**
@@ -59,31 +58,11 @@ class GoogleSignIn
             return [$byEmail->fresh() ?? $byEmail, false];
         }
 
-        $dateOfBirth = is_string($dateOfBirth) ? trim($dateOfBirth) : '';
-
-        if ($dateOfBirth === '') {
-            $fromGoogle = $this->birthdays->fetch($accessToken);
-            $dateOfBirth = is_string($fromGoogle) ? trim($fromGoogle) : '';
-        }
-
-        if ($dateOfBirth === '') {
-            throw ValidationException::withMessages([
-                'date_of_birth' => ['Enter your date of birth to create an account.'],
-            ]);
-        }
-
-        if (! AgeGate::isOldEnough($dateOfBirth)) {
-            throw ValidationException::withMessages([
-                'date_of_birth' => ['You must be at least '.AgeGate::MINIMUM_AGE.' years old to use PLNR.'],
-            ]);
-        }
-
-        $user = DB::transaction(function () use ($payload, $sub, $email, $dateOfBirth): User {
+        $user = DB::transaction(function () use ($payload, $sub, $email): User {
             $user = new User;
             $user->forceFill([
                 'name' => $this->nameFrom($payload),
                 'email' => $email,
-                'date_of_birth' => $dateOfBirth,
                 'google_sub' => $sub,
                 'password' => null,
                 'email_verified_at' => now(),

@@ -26,25 +26,5 @@ class GoogleSignInRequest extends FormRequest
         ];
     }
 
-    public function withValidator(Validator $validator): void
-    {
-        $validator->after(function (Validator $validator): void {
-            if ($validator->errors()->has('date_of_birth')) {
-                return;
-            }
-
-            $raw = $this->input('date_of_birth');
-
-            if (! is_string($raw) || trim($raw) === '') {
-                return;
-            }
-
-            if (! AgeGate::isOldEnough($raw)) {
-                $validator->errors()->add(
-                    'date_of_birth',
-                    'You must be at least '.AgeGate::MINIMUM_AGE.' years old to use PLNR.',
-                );
-            }
-        });
-    }
+    // No age validation: account creation no longer collects date of birth.
 }
