@@ -37,6 +37,7 @@ class User extends Authenticatable
         'email',
         'date_of_birth',
         'google_sub',
+        'apple_sub',
         'city',
         'interests',
         'stripe_customer_id',

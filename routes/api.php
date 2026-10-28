@@ -57,6 +57,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/register', [AuthController::class, 'register']);
             Route::post('/login', [AuthController::class, 'login']);
             Route::post('/google', [AuthController::class, 'google']);
+    Route::post('/apple', [AuthController::class, 'apple']);
             Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
             Route::post('/reset-password', [AuthController::class, 'resetPassword']);
         });

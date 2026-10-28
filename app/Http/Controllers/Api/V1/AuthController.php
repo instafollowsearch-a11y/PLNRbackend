@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\ChangePasswordRequest;
 use App\Http\Requests\Api\V1\DeleteAccountRequest;
 use App\Http\Requests\Api\V1\ForgotPasswordRequest;
+use App\Http\Requests\Api\V1\AppleSignInRequest;
 use App\Http\Requests\Api\V1\GoogleSignInRequest;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Requests\Api\V1\RegisterRequest;
@@ -16,6 +17,7 @@ use App\Http\Resources\UserResource;
 use App\Models\PlanShare;
 use App\Models\User;
 use App\Services\Accounts\AccountDeletionService;
+use App\Services\Auth\AppleSignIn;
 use App\Services\Auth\GoogleSignIn;
 use App\Services\Plans\PlanShareService;
 use App\Services\Weekend\DeliverWeekendPicks;
@@ -37,6 +39,7 @@ class AuthController extends Controller
         private readonly AccountDeletionService $accountDeletion,
         private readonly DeliverWeekendPicks $weekendPicks,
         private readonly GoogleSignIn $googleSignIn,
+        private readonly AppleSignIn $appleSignIn,
     ) {}
 
     public function register(RegisterRequest $request): JsonResponse
@@ -104,6 +107,36 @@ class AuthController extends Controller
         if ($result === null) {
             return response()->json([
                 'message' => 'Google sign-in could not be verified.',
+            ], 401);
+        }
+
+        [$user, $created] = $result;
+        $this->acceptMatchingInvite($request->validated('invite_token'), $user);
+        $token = $user->createToken('mobile')->plainTextToken;
+
+        return response()->json([
+            'data' => [
+                'user' => new UserResource($user->fresh()),
+                'token' => $token,
+            ],
+            'message' => $created ? 'Registration successful.' : 'Login successful.',
+        ], $created ? 201 : 200);
+    }
+
+    public function apple(AppleSignInRequest $request): JsonResponse
+    {
+        $identityToken = $request->input('identity_token');
+        $name = $request->input('name');
+        $email = $request->input('email');
+        $result = $this->appleSignIn->signIn(
+            is_string($identityToken) ? $identityToken : null,
+            is_string($name) ? $name : null,
+            is_string($email) ? $email : null,
+        );
+
+        if ($result === null) {
+            return response()->json([
+                'message' => 'Apple sign-in could not be verified.',
             ], 401);
         }
 
