@@ -2,12 +2,15 @@
 
 namespace App\Services\AI;
 
+use App\Models\Event;
 use App\Models\Itinerary;
 use App\Models\PlanSession;
 use App\Models\Suggestion;
 use App\Services\AI\Prompts\PlanPromptBuilderResolver;
 use App\Services\AI\Prompts\RoadTripPromptBuilder;
 use App\Services\AI\Prompts\VacationPromptBuilder;
+use App\Services\Events\FindLocalStopLinks;
+use App\Services\Events\PlanEventInventory;
 use App\Services\Places\AreaLimit;
 use App\Services\Places\LookupPin;
 use App\Services\Places\PlaceListingLookup;
@@ -22,6 +25,8 @@ class ItineraryService
         private readonly PlaceListingLookup $placeListingLookup,
         private readonly RoadTripDriveEstimate $roadTripDriveEstimate,
         private readonly CoordinateTimeZone $timeZones,
+        private readonly PlanEventInventory $inventory,
+        private readonly FindLocalStopLinks $eventLinks,
     ) {}
 
     public function draft(PlanSession $session, Suggestion $suggestion): Suggestion
@@ -74,11 +79,23 @@ class ItineraryService
      */
     private function writeContent(PlanSession $session, Suggestion $suggestion, LookupPin $pin): array
     {
-        $places = PlanConsistency::placeNames($suggestion->payload ?? []);
+        $required = $this->requiredEventStops($suggestion);
+        $places = $required !== []
+            ? array_values(array_filter(array_map(
+                static fn (array $stop): string => (string) ($stop['name'] ?? ''),
+                $required,
+            )))
+            : PlanConsistency::placeNames($suggestion->payload ?? []);
         $slug = $this->promptBuilderResolver->resolve($session)->slug();
         $content = $this->requestContent($session, $suggestion);
 
-        if (! PlanConsistency::usesPlaces($content, $places)) {
+        if ($required !== []) {
+            $content = PlanConsistency::mergeRequiredStops($content, $required);
+
+            if (! PlanConsistency::usesAllPlaces($content, $places)) {
+                $content = PlanConsistency::mergeRequiredStops($content, $required);
+            }
+        } elseif (! PlanConsistency::usesPlaces($content, $places)) {
             $content = PlanConsistency::anchorPlaces($content, $places);
         }
 
@@ -91,6 +108,7 @@ class ItineraryService
     private function requestContent(PlanSession $session, Suggestion $suggestion): array
     {
         $builder = $this->promptBuilderResolver->resolve($session);
+        $builder->setEventCatalog($this->inventory->catalogOnly($session));
 
         $response = $this->client->chat([
             [
@@ -190,6 +208,54 @@ class ItineraryService
         }
 
         $suggestion->payload = $payload;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function requiredEventStops(Suggestion $suggestion): array
+    {
+        $ids = [];
+
+        foreach ($suggestion->payload['event_ids'] ?? [] as $id) {
+            if (is_numeric($id) && (int) $id > 0) {
+                $ids[] = (int) $id;
+            }
+        }
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $events = $this->inventory->eventsByIds($ids);
+        $stops = [];
+
+        foreach ($ids as $id) {
+            $event = $events->get($id);
+
+            if (! $event instanceof Event) {
+                continue;
+            }
+
+            $url = $this->eventLinks->urlFor($event);
+            $stop = [
+                'time' => $event->starts_at?->timezone((string) config('app.timezone'))->format('g:i A') ?? '',
+                'name' => $event->title,
+                'activity' => trim((string) ($event->description ?? '')) !== ''
+                    ? mb_substr((string) $event->description, 0, 280)
+                    : 'Go to this listing. Plan to arrive a little early, stay for the set or the main window, and use the listing URL for tickets or details.',
+                'notes' => (string) ($event->venue_name ?? ''),
+                'event_id' => $event->id,
+            ];
+
+            if ($url !== null) {
+                $stop['venue_url'] = $url;
+            }
+
+            $stops[] = $stop;
+        }
+
+        return $stops;
     }
 
     private function hasDraft(Suggestion $suggestion): bool

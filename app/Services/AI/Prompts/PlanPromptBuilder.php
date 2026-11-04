@@ -9,6 +9,11 @@ interface PlanPromptBuilder
 {
     public function slug(): string;
 
+    /**
+     * @param  list<array{event_id: int, title: string, venue: ?string, starts_at: ?string, url: ?string, source: string}>  $catalog
+     */
+    public function setEventCatalog(array $catalog): void;
+
     public function suggestionSystemPrompt(): string;
 
     public function suggestionUserPrompt(PlanSession $session): string;

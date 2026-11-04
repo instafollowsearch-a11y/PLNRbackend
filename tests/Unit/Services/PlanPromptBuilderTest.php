@@ -25,6 +25,9 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertSame('night_out', $builder->slug());
         $this->assertStringContainsString('nightlife', $builder->suggestionSystemPrompt());
         $this->assertStringContainsString('estimated_cost_per_person', $builder->suggestionSystemPrompt());
+        $this->assertStringContainsString('one stop per required event_id', $builder->itinerarySystemPrompt());
+        $this->assertStringContainsString('at most one meal or drinks filler', $builder->itinerarySystemPrompt());
+        $this->assertStringNotContainsString('array of 4 to 7', $builder->itinerarySystemPrompt());
 
         $payload = $builder->normalizeSuggestionPayload([
             'name' => 'Jazz Night',
@@ -45,6 +48,11 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertSame('date_night', $builder->slug());
         $this->assertStringContainsString('romantic', $builder->suggestionSystemPrompt());
         $this->assertStringContainsString('estimated_cost', $builder->suggestionSystemPrompt());
+        $this->assertStringContainsString('requested event count', $builder->suggestionSystemPrompt());
+        $this->assertStringContainsString('one stop per requested event', $builder->itinerarySystemPrompt());
+        $this->assertStringContainsString('at most one meal or drinks filler', $builder->itinerarySystemPrompt());
+        $this->assertStringContainsString('end before known listing hours', $builder->itinerarySystemPrompt());
+        $this->assertStringNotContainsString('array of 4 to 8', $builder->itinerarySystemPrompt());
     }
 
     public function test_solo_date_prompt_plans_for_one_person(): void
@@ -300,7 +308,7 @@ class PlanPromptBuilderTest extends TestCase
         $this->assertStringContainsString('duration is how long to stay, such as 45 min.', $prompt);
         $this->assertStringContainsString('closing_time is when to be there.', $prompt);
         $this->assertStringContainsString('time is a clock time.', $builder->itinerarySystemPrompt());
-        $this->assertStringContainsString('The notes include how long to stay.', $builder->itinerarySystemPrompt());
+        $this->assertStringContainsString('how long to stay', $builder->itinerarySystemPrompt());
         $this->assertStringContainsString('one days entry for every calendar day', $builder->itinerarySystemPrompt());
     }
 

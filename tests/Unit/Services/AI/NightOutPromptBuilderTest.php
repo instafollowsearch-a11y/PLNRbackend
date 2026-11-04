@@ -19,7 +19,9 @@ class NightOutPromptBuilderTest extends TestCase
             'city' => 'Austin',
             'title' => 'Skyline Sunset Sessions',
             'source' => 'fixture',
-            'starts_at' => now()->addDays(2),
+            'starts_at' => strtolower((string) now()->englishDayOfWeek) === 'saturday'
+                ? now()->setTime(20, 0)
+                : now()->next('saturday')->setTime(20, 0),
         ]);
 
         $session = PlanSession::factory()->create([
@@ -39,7 +41,7 @@ class NightOutPromptBuilderTest extends TestCase
         $prompt = $builder->suggestionUserPrompt($session);
 
         $this->assertStringContainsString('Skyline Sunset Sessions', $prompt);
-        $this->assertStringContainsString('Local upcoming events:', $prompt);
+        $this->assertStringContainsString('Catalog of real local events', $prompt);
     }
 
     public function test_a_street_address_still_matches_events_in_that_city(): void
@@ -48,7 +50,9 @@ class NightOutPromptBuilderTest extends TestCase
             'city' => 'Atlanta',
             'title' => 'Westview Jazz',
             'source' => 'fixture',
-            'starts_at' => now()->addDays(2),
+            'starts_at' => strtolower((string) now()->englishDayOfWeek) === 'saturday'
+                ? now()->setTime(20, 0)
+                : now()->next('saturday')->setTime(20, 0),
         ]);
 
         $session = PlanSession::factory()->create([

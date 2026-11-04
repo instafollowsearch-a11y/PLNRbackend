@@ -7,12 +7,14 @@ use App\Models\PlanType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\RateLimiter;
 use Tests\Concerns\FakesAnthropic;
+use Tests\Concerns\SeedsPlanEventCatalog;
 use Tests\TestCase;
 
 class RateLimitingTest extends TestCase
 {
     use FakesAnthropic;
     use RefreshDatabase;
+    use SeedsPlanEventCatalog;
 
     protected function setUp(): void
     {
@@ -53,6 +55,7 @@ class RateLimitingTest extends TestCase
     public function test_ai_suggestions_returns_429_when_limit_exceeded(): void
     {
         $this->fakeAnthropicSuggestions();
+        $this->seedPlanEventCatalog();
 
         config([
             'services.anthropic.key' => 'test-key',
@@ -63,6 +66,7 @@ class RateLimitingTest extends TestCase
         $session = PlanSession::factory()->create([
             'user_id' => null,
             'plan_type_id' => $planType->id,
+            'city' => 'Austin',
             'answers' => [
                 'city' => 'Austin',
                 'interests' => 'jazz',

@@ -15,7 +15,7 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
 
     public function suggestionSystemPrompt(): string
     {
-        return $this->withPricingRealism('You are a romantic date planning assistant. Return only valid JSON with key "suggestions" containing 3 to 5 objects. Each object must have: name (string), description (string), estimated_cost (number, total for the couple, or for one person when the user prompt says this is a solo date), time_slot (string), venues (array of strings). Prefer real local events from the user prompt when relevant; you may combine or suggest alternatives. When the user prompt says this is a solo date, plan the evening for one person and do not include a partner.');
+        return $this->withCatalogRules('You are a romantic date planning assistant. Return only valid JSON with key "suggestions" containing 3 to 5 objects. Each object must have: name (string), description (string), estimated_cost (number, total for the couple, or for one person when the user prompt says this is a solo date), time_slot (string), venues (array of strings), event_ids (array of catalog event_id numbers). Use as many catalog event_ids as the requested event count when the catalog has enough; never invent ids or exceed the catalog. When the user prompt says this is a solo date, plan the evening for one person and do not include a partner.');
     }
 
     public function suggestionUserPrompt(PlanSession $session): string
@@ -39,7 +39,7 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return $this->withPricingRealism('You are a romantic date itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), stops (array of 3-8 objects with time, name, activity, notes under 25 words, and optional venue_url / maps_url https links when known). Cover the requested number of events. Keep every stop in the same neighborhood. Travel from one stop to the next is about 10 to 20 minutes, and the next stop starts 45 to 90 minutes after the previous one. Do not leave a two-hour drive between outings. When the user prompt says this is a solo date, plan the evening for one person and do not include a partner. Keep the full response under 2500 tokens.');
+        return $this->withItineraryDetail('You are a romantic date itinerary planner. Return only valid JSON with keys: title (string), summary (string), stops (array of objects with time, name, activity, notes, and optional venue_url / maps_url https links when known). Return one stop per requested event using the same listing names as the picked card, then at most one meal or drinks filler. Keep every stop in the same neighborhood. Travel from one stop to the next is about 10 to 20 minutes, and the next stop starts 45 to 90 minutes after the previous one. Do not leave a two-hour drive between outings. When the user prompt says this is a solo date, plan the evening for one person and do not include a partner.');
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string
@@ -49,8 +49,8 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
 
         return implode("\n", $this->withAreaLimit($session, $this->withOpenToSuggestions($session, $this->withLocalEvents($session, [
             $solo
-                ? 'Create a solo date itinerary for one person as compact JSON only. Do not include a partner.'
-                : 'Create a full-day romantic date itinerary as compact JSON only.',
+                ? 'Create a solo date itinerary for one person as JSON only. Make it fuller than the suggestion card. Do not include a partner.'
+                : 'Create a full-day romantic date itinerary as JSON only. Make it fuller than the suggestion card.',
             $this->formatAnswers($session),
             $this->formatSuggestionContext($suggestion),
             'Event count requested: '.($answers['event_count'] ?? ''),
@@ -76,6 +76,7 @@ class DateNightPromptBuilder extends AbstractPlanPromptBuilder
                 is_array($item['venues'] ?? null) ? $item['venues'] : [],
                 fn ($venue) => is_string($venue) && $venue !== '',
             )),
+            'event_ids' => $this->eventIdsFrom($item),
         ];
     }
 

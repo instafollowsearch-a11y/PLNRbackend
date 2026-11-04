@@ -474,6 +474,7 @@ class PlaceListingLookup
         $matches = $this->matchesFor($stops, $city, $area);
         $kept = [];
         $removed = 0;
+        $dropUnmatchedFillers = $this->hasCatalogEventStops($stops);
 
         foreach ($stops as $index => $stop) {
             if (! is_array($stop)) {
@@ -488,7 +489,7 @@ class PlaceListingLookup
                 $pin?->note($match['latitude'], $match['longitude']);
             }
 
-            $enriched = $this->applyMatch($stop, $match, $area, $keepCoordinates);
+            $enriched = $this->applyMatch($stop, $match, $area, $keepCoordinates, $dropUnmatchedFillers);
 
             if ($enriched === null) {
                 $removed++;
@@ -504,6 +505,20 @@ class PlaceListingLookup
         }
 
         return $this->fillMissingHours($kept, $city);
+    }
+
+    /**
+     * @param  array<int, mixed>  $stops
+     */
+    private function hasCatalogEventStops(array $stops): bool
+    {
+        foreach ($stops as $stop) {
+            if (is_array($stop) && ! empty($stop['event_id'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -588,20 +603,24 @@ class PlaceListingLookup
 
     /**
      * @param  array<string, mixed>  $stop
-     * @return array<string, mixed>|null
-     */
-    /**
-     * @param  array<string, mixed>  $stop
      * @param  array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null  $match
      * @return array<string, mixed>|null
      */
-    private function applyMatch(array $stop, ?array $match, ?AreaLimit $area, bool $keepCoordinates): ?array
+    private function applyMatch(array $stop, ?array $match, ?AreaLimit $area, bool $keepCoordinates, bool $dropUnmatchedFillers = false): ?array
     {
         if ($match === null) {
+            if ($dropUnmatchedFillers && $this->settings->googleApiKey() !== null && empty($stop['event_id'])) {
+                return null;
+            }
+
             return $stop;
         }
 
         if ($match['closed'] === true) {
+            if (! empty($stop['event_id'])) {
+                return $stop;
+            }
+
             return null;
         }
 

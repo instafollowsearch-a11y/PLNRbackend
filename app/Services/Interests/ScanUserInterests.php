@@ -5,13 +5,18 @@ namespace App\Services\Interests;
 use App\Models\InterestMatch;
 use App\Models\InterestScan;
 use App\Models\User;
+use App\Services\Events\CityListingInventory;
 use Illuminate\Support\Facades\DB;
 
 class ScanUserInterests
 {
+    /** @var array<string, true> */
+    private array $filledCities = [];
+
     public function __construct(
         private readonly InterestEventMatcher $matcher,
         private readonly ScheduleInterestPings $interestPings,
+        private readonly CityListingInventory $listings,
     ) {}
 
     public function run(): InterestScan
@@ -37,6 +42,7 @@ class ScanUserInterests
                     continue;
                 }
 
+                $this->fillCityListings($user);
                 $matches = $this->matcher->match($user);
                 $checked++;
 
@@ -86,5 +92,25 @@ class ScanUserInterests
         }
 
         return false;
+    }
+
+    private function fillCityListings(User $user): void
+    {
+        $cityKey = $this->listings->cityKey((string) $user->city);
+
+        if ($cityKey === '' || isset($this->filledCities[$cityKey])) {
+            return;
+        }
+
+        $this->listings->fill(
+            (string) $user->city,
+            now(),
+            now()->addDays(InterestEventMatcher::WINDOW_DAYS),
+            $this->matcher->labelsFor($user),
+            true,
+            'interest_web_search',
+            true,
+        );
+        $this->filledCities[$cityKey] = true;
     }
 }

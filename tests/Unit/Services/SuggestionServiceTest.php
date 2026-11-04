@@ -4,18 +4,18 @@ namespace Tests\Unit\Services;
 
 use App\Models\PlanSession;
 use App\Models\PlanType;
-use App\Services\AI\AnthropicClient;
-use App\Services\AI\Prompts\PlanPromptBuilderResolver;
 use App\Services\AI\SuggestionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\Concerns\FakesAnthropic;
+use Tests\Concerns\SeedsPlanEventCatalog;
 use Tests\TestCase;
 
 class SuggestionServiceTest extends TestCase
 {
     use FakesAnthropic;
     use RefreshDatabase;
+    use SeedsPlanEventCatalog;
 
     protected function setUp(): void
     {
@@ -30,6 +30,7 @@ class SuggestionServiceTest extends TestCase
     public function test_generates_suggestions_from_anthropic_fixture(): void
     {
         $this->fakeAnthropicSuggestions();
+        $this->seedPlanEventCatalog();
 
         $planType = PlanType::factory()->create(['slug' => 'night_out']);
         $session = PlanSession::factory()->create([
@@ -46,13 +47,13 @@ class SuggestionServiceTest extends TestCase
             ],
         ]);
 
-        $service = new SuggestionService(app(AnthropicClient::class), new PlanPromptBuilderResolver);
+        $service = app(SuggestionService::class);
         $suggestions = $service->generate($session);
 
         $this->assertGreaterThanOrEqual(3, $suggestions->count());
         $this->assertSame(PlanSession::STATUS_SUGGESTIONS, $session->fresh()->status);
         $this->assertSame('Jazz and Bites', $suggestions->first()->payload['name']);
 
-        Http::assertSentCount(1);
+        Http::assertSentCount(2);
     }
 }

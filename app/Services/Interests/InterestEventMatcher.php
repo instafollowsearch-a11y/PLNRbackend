@@ -3,7 +3,11 @@
 namespace App\Services\Interests;
 
 use App\Models\Event;
+use App\Models\PlanSession;
 use App\Models\User;
+use App\Services\AI\PlanConsistency;
+use App\Services\AI\Prompts\AbstractPlanPromptBuilder;
+use App\Services\Events\CityListingInventory;
 use Illuminate\Support\Collection;
 use Wamania\Snowball\Stemmer\English;
 
@@ -49,6 +53,26 @@ class InterestEventMatcher
         'over' => true,
     ];
 
+    /**
+     * Extra stems so "Live music" can hit jazz/concert listings.
+     *
+     * @var array<string, list<string>>
+     */
+    private const SYNONYMS = [
+        'music' => ['jazz', 'concert', 'band', 'gig', 'orchestra', 'blues', 'rock', 'dj', 'singer', 'karaoke'],
+        'jazz' => ['music', 'concert', 'sax', 'improv'],
+        'comedi' => ['improv', 'standup', 'comic', 'laugh'],
+        'comedy' => ['improv', 'standup', 'comic', 'laugh'],
+        'art' => ['galleri', 'museum', 'exhibit'],
+        'galleri' => ['art', 'museum', 'exhibit'],
+        'theater' => ['theatr', 'play', 'musical', 'drama'],
+        'theatr' => ['theater', 'play', 'musical', 'drama'],
+        'sport' => ['game', 'match', 'stadium', 'team'],
+        'club' => ['nightlif', 'dj', 'dance', 'nightlife'],
+        'nightlif' => ['club', 'dj', 'dance'],
+        'food' => ['festival', 'market', 'taco', 'restaurant', 'brunch'],
+    ];
+
     private readonly English $stemmer;
 
     /** @var array<string, list<string>> */
@@ -57,7 +81,7 @@ class InterestEventMatcher
     /** @var array<string, Collection<int, Event>> */
     private array $eventsByCity = [];
 
-    public function __construct()
+    public function __construct(private readonly CityListingInventory $listings)
     {
         $this->stemmer = new English;
     }
@@ -68,33 +92,29 @@ class InterestEventMatcher
     public function match(User $user): array
     {
         $interests = $this->interests($user);
+        $city = trim((string) $user->city);
 
-        if ($interests === [] || trim((string) $user->city) === '') {
+        if ($interests === [] || $city === '') {
             return [];
         }
 
         $ranked = [];
 
-        foreach ($this->eventsFor((string) $user->city) as $event) {
-            $eventTokens = $this->tokens(trim($event->title.' '.($event->description ?? '')));
+        foreach ($this->eventsFor($city) as $event) {
+            $haystack = trim($event->title.' '.($event->venue_name ?? '').' '.($event->description ?? ''));
+            $eventTokens = $this->tokens($haystack);
             $bestInterest = null;
             $bestScore = 0;
             $bestSpecificity = 0;
 
             foreach ($interests as $interest) {
-                $interestTokens = $this->tokens($interest);
-
-                if ($interestTokens === []) {
-                    continue;
-                }
-
-                $score = count(array_intersect($interestTokens, $eventTokens));
+                $score = $this->scoreInterest($interest, $haystack, $eventTokens);
 
                 if ($score < 1) {
                     continue;
                 }
 
-                $specificity = count($interestTokens);
+                $specificity = count($this->tokens($interest));
 
                 if ($score > $bestScore || ($score === $bestScore && $specificity > $bestSpecificity)) {
                     $bestScore = $score;
@@ -136,19 +156,44 @@ class InterestEventMatcher
     /**
      * @return list<string>
      */
+    public function labelsFor(User $user): array
+    {
+        return $this->interests($user);
+    }
+
+    /**
+     * @return list<string>
+     */
     private function interests(User $user): array
     {
-        if (! is_array($user->interests)) {
-            return [];
+        $interests = [];
+        $seen = [];
+
+        foreach ($this->labels($user->interests) as $label) {
+            $this->pushInterest($interests, $seen, $label);
         }
 
-        $interests = [];
+        $cityKey = $this->listings->cityKey((string) $user->city);
 
-        foreach ($user->interests as $interest) {
-            $label = trim((string) $interest);
+        if ($cityKey === '' || $user->id === null) {
+            return $interests;
+        }
 
-            if ($label !== '') {
-                $interests[] = $label;
+        $sessions = PlanSession::query()
+            ->where('user_id', $user->id)
+            ->orderByDesc('id')
+            ->limit(12)
+            ->get(['id', 'city', 'answers']);
+
+        foreach ($sessions as $session) {
+            if ($this->listings->cityKey((string) $session->city) !== $cityKey) {
+                continue;
+            }
+
+            $answers = is_array($session->answers) ? $session->answers : [];
+
+            foreach ($this->labels($answers['interests'] ?? null) as $label) {
+                $this->pushInterest($interests, $seen, $label);
             }
         }
 
@@ -156,22 +201,112 @@ class InterestEventMatcher
     }
 
     /**
+     * @param  list<string>  $interests
+     * @param  array<string, true>  $seen
+     */
+    private function pushInterest(array &$interests, array &$seen, string $label): void
+    {
+        if ($label === '' || str_contains($label, AbstractPlanPromptBuilder::OPEN_TO_SUGGESTIONS)) {
+            return;
+        }
+
+        $key = mb_strtolower($label);
+
+        if (isset($seen[$key])) {
+            return;
+        }
+
+        $seen[$key] = true;
+        $interests[] = $label;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function labels(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = preg_split('/[,|]/', $value) ?: [];
+        }
+
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $labels = [];
+
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $item = $item['label'] ?? $item['name'] ?? '';
+            }
+
+            $label = trim((string) $item);
+
+            if ($label !== '') {
+                $labels[] = $label;
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
      * @return Collection<int, Event>
      */
     private function eventsFor(string $city): Collection
     {
-        $key = mb_strtolower(trim($city));
+        $cityKey = $this->listings->cityKey($city);
+        $cacheKey = mb_strtolower($cityKey);
 
-        if (! array_key_exists($key, $this->eventsByCity)) {
-            $this->eventsByCity[$key] = Event::query()
-                ->whereRaw('LOWER(city) = ?', [$key])
-                ->where('starts_at', '>=', now())
-                ->where('starts_at', '<', now()->addDays(self::WINDOW_DAYS))
-                ->orderBy('starts_at')
-                ->get();
+        if (! array_key_exists($cacheKey, $this->eventsByCity)) {
+            $this->eventsByCity[$cacheKey] = $this->listings->queryEvents(
+                $city,
+                $cityKey,
+                now(),
+                now()->addDays(self::WINDOW_DAYS),
+            );
         }
 
-        return $this->eventsByCity[$key];
+        return $this->eventsByCity[$cacheKey];
+    }
+
+    /**
+     * @param  list<string>  $eventTokens
+     */
+    private function scoreInterest(string $interest, string $haystack, array $eventTokens): int
+    {
+        $score = 0;
+
+        if (PlanConsistency::namesOverlap($interest, $haystack)) {
+            $score += 2;
+        }
+
+        $interestTokens = $this->expandedTokens($interest);
+
+        if ($interestTokens === [] || $eventTokens === []) {
+            return $score;
+        }
+
+        $shared = count(array_intersect($interestTokens, $eventTokens));
+
+        return $score + $shared;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function expandedTokens(string $interest): array
+    {
+        $tokens = $this->tokens($interest);
+        $expanded = $tokens;
+
+        foreach ($tokens as $token) {
+            foreach (self::SYNONYMS[$token] ?? [] as $synonym) {
+                $expanded[] = $synonym;
+            }
+        }
+
+        return array_values(array_unique($expanded));
     }
 
     /**

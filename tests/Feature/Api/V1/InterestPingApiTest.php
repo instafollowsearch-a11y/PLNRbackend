@@ -16,6 +16,13 @@ class InterestPingApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['services.events.sources' => []]);
+    }
+
     public function test_scan_schedules_day_before_and_morning_pings_for_pro_only(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-10-20 11:00:00'));

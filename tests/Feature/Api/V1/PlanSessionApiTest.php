@@ -13,12 +13,14 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\FakesAnthropic;
+use Tests\Concerns\SeedsPlanEventCatalog;
 use Tests\TestCase;
 
 class PlanSessionApiTest extends TestCase
 {
     use FakesAnthropic;
     use RefreshDatabase;
+    use SeedsPlanEventCatalog;
 
     /** @var array<string, PlanType> */
     private array $planTypes = [];
@@ -31,6 +33,10 @@ class PlanSessionApiTest extends TestCase
             'services.anthropic.key' => 'test-key',
             'services.anthropic.url' => 'https://api.anthropic.com/v1/messages',
         ]);
+
+        $this->seedPlanEventCatalog('Austin');
+        $this->seedPlanEventCatalog('Austin', 8, now()->setDate(2027, 6, 13)->setTime(18, 0));
+        $this->seedPlanEventCatalog('Barcelona', 8, now()->setDate(2027, 6, 12)->setTime(18, 0));
 
         foreach (['night_out', 'date_night', 'vacation', 'road_trip'] as $slug) {
             $this->planTypes[$slug] = PlanType::factory()->create([

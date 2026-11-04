@@ -5,11 +5,8 @@ namespace App\Services\AI\Prompts;
 use App\Models\PlanSession;
 use App\Models\Suggestion;
 use App\Services\AI\PlanConsistency;
-use App\Services\Events\EventContextService;
-use App\Services\Events\EventIngestionService;
-use App\Services\Events\EventSourceResolver;
+use App\Services\Events\PlanEventInventory;
 use App\Services\Places\AreaLimit;
-use App\Support\Geo\LocationLabel;
 
 abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
 {
@@ -22,6 +19,54 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
      * Cost numbers must match real venue tiers — never underprice expensive places.
      */
     public const PRICING_REALISM_RULES = 'Pricing must be realistic for the named places. Estimate from typical menu prices, tickets, cover charges, lodging, or travel costs in that city — not a round "nice" number. Fine dining, steakhouses, cocktail bars, clubs, hotels, and major attractions use mid-to-high real-world ranges; never describe an expensive venue as about $15 or similarly cheap. Stay within the stated budget by choosing appropriately priced places, not by underpricing expensive ones. Numeric cost fields and the description must agree. When asked for cheaper options, still use realistic prices for the cheaper tier.';
+
+    /**
+     * @var list<array{event_id: int, title: string, venue: ?string, starts_at: ?string, url: ?string, source: string}>
+     */
+    protected array $eventCatalog = [];
+
+    /**
+     * @param  list<array{event_id: int, title: string, venue: ?string, starts_at: ?string, url: ?string, source: string}>  $catalog
+     */
+    public function setEventCatalog(array $catalog): void
+    {
+        $this->eventCatalog = $catalog;
+    }
+
+    /**
+     * @return list<array{event_id: int, title: string, venue: ?string, starts_at: ?string, url: ?string, source: string}>
+     */
+    public function eventCatalog(): array
+    {
+        return $this->eventCatalog;
+    }
+
+    protected function withItineraryDetail(string $prompt): string
+    {
+        return $this->withPricingRealism($prompt.' Expand the picked card into a usable plan, not a stub. Summary is 2 to 4 sentences. Each stop has time, the listing or venue name, what you actually do there, and notes of about 40 to 70 words covering vibe, what to expect, how long to stay, and one practical tip. Everyday wording is fine as long as it is obviously the same events as the selected card. Stop time windows must end before known listing hours when hours are listed. Keep JSON only.');
+    }
+
+    protected function withCatalogRules(string $prompt): string
+    {
+        return $this->withPricingRealism($prompt.' Each suggestion must include event_ids from the catalog JSON in the user prompt. Never invent event_id values, event titles, or dates. Use different primary event_ids across cards when the catalog allows. Optional filler venues (dinner, drinks, hotel) may be added beside those events.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @return list<int>
+     */
+    protected function eventIdsFrom(array $item): array
+    {
+        $ids = [];
+
+        foreach ($item['event_ids'] ?? [] as $id) {
+            if (is_numeric($id) && (int) $id > 0) {
+                $ids[] = (int) $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
 
     protected function withPricingRealism(string $prompt): string
     {
@@ -299,18 +344,19 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
 
     protected function appendLocalEventsContext(PlanSession $session, array $lines): array
     {
-        $city = $session->city ?? ($session->answers['city'] ?? null);
-        $cityName = is_string($city) ? LocationLabel::eventCity($city) : '';
+        $catalog = $this->eventCatalog;
 
-        if ($cityName !== '') {
-            app(EventIngestionService::class)->syncCity($cityName, app(EventSourceResolver::class));
+        if ($catalog === []) {
+            $catalog = app(PlanEventInventory::class)->catalogOnly($session);
+            $this->eventCatalog = $catalog;
         }
 
-        $context = app(EventContextService::class)->formatForPrompt($cityName !== '' ? $cityName : null);
-
-        if ($context !== '') {
-            $lines[] = $context;
+        if ($catalog === []) {
+            return $lines;
         }
+
+        $lines[] = 'Catalog of real local events (JSON). Use only these event_id values. Do not invent events.';
+        $lines[] = json_encode($catalog, JSON_UNESCAPED_SLASHES);
 
         return $lines;
     }
@@ -327,7 +373,7 @@ abstract class AbstractPlanPromptBuilder implements PlanPromptBuilder
             return $lines;
         }
 
-        $withEvents[] = 'If a stop is one of those local events, set venue_url to that event URL exactly.';
+        $withEvents[] = 'Every selected catalog event must show up as its own stop. Match by meaning, not exact spelling: "Jazz at the Harbor" is the same listing as "Harbor Jazz Night". Use the catalog title on that stop, set venue_url to the listing URL, and write a fuller activity plus notes around it. You may add dinner or drinks nearby. Do not swap in a different event.';
 
         return $withEvents;
     }

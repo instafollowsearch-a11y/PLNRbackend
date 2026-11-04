@@ -94,6 +94,14 @@ class WeekendRecommendationApiTest extends TestCase
             'user_id' => $user->id,
             'city' => 'Austin',
         ]);
+
+        $this->assertTrue(collect(Http::recorded())->contains(function (array $pair): bool {
+            $body = json_decode((string) $pair[0]->body(), true);
+
+            return is_array($body)
+                && ($body['tools'][0]['name'] ?? null) === 'web_search'
+                && (int) ($body['tools'][0]['max_uses'] ?? 0) === 3;
+        }));
     }
 
     public function test_falls_back_to_web_search_when_local_catalog_empty(): void

@@ -7,11 +7,13 @@ use App\Models\PlanType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\SeedsPlanEventCatalog;
 use Tests\TestCase;
 
 class PlanSessionLoggingTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsPlanEventCatalog;
 
     public function test_suggestions_failure_is_logged(): void
     {
@@ -19,6 +21,8 @@ class PlanSessionLoggingTest extends TestCase
             'services.anthropic.key' => 'test-key',
             'services.anthropic.url' => 'https://api.anthropic.com/v1/messages',
         ]);
+
+        $this->seedPlanEventCatalog();
 
         Http::fake([
             'api.anthropic.com/v1/messages' => Http::response(['error' => 'down'], 500),

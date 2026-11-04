@@ -132,4 +132,96 @@ class PlanConsistencyTest extends TestCase
             ],
         ], ['Blue Note Bar']));
     }
+
+    public function test_all_required_event_names_must_appear(): void
+    {
+        $content = [
+            'stops' => [
+                ['name' => 'Blue Note Bar'],
+                ['name' => 'Taco Row'],
+            ],
+        ];
+
+        $this->assertTrue(PlanConsistency::usesAllPlaces($content, ['Blue Note Bar', 'Taco Row']));
+        $this->assertFalse(PlanConsistency::usesAllPlaces($content, ['Blue Note Bar', 'Harbor Jazz Club']));
+
+        $merged = PlanConsistency::mergeRequiredStops([
+            'stops' => [
+                ['name' => 'Other Club', 'time' => '6:00 PM'],
+            ],
+        ], [
+            ['name' => 'Harbor Jazz Night', 'time' => '8:00 PM', 'event_id' => 9, 'venue_url' => 'https://example.test/jazz'],
+        ]);
+
+        $this->assertSame('Harbor Jazz Night', $merged['stops'][0]['name']);
+        $this->assertSame(9, $merged['stops'][0]['event_id']);
+    }
+
+    public function test_event_names_match_by_meaning_not_exact_spelling(): void
+    {
+        $this->assertTrue(PlanConsistency::namesOverlap('Harbor Jazz Night', 'Jazz at the Harbor'));
+        $this->assertTrue(PlanConsistency::namesOverlap('Blue Note Bar', 'The Blue Note'));
+        $this->assertTrue(PlanConsistency::namesOverlap('Elephant Room', 'Live set at Elephant Room downstairs'));
+        $this->assertFalse(PlanConsistency::namesOverlap('Harbor Jazz Night', 'Taco Row Food Hall'));
+
+        $merged = PlanConsistency::mergeRequiredStops([
+            'stops' => [
+                [
+                    'time' => '8:00 PM',
+                    'name' => 'Jazz at the Harbor',
+                    'activity' => 'Catch the early set, grab a high-top, and stay through the second song block.',
+                    'notes' => 'Arrive 20 minutes early. Cover at the door.',
+                ],
+            ],
+        ], [
+            [
+                'name' => 'Harbor Jazz Night',
+                'time' => '8:00 PM',
+                'activity' => 'Listed jazz show.',
+                'notes' => 'Harbor Stage',
+                'event_id' => 12,
+                'venue_url' => 'https://example.test/harbor-jazz',
+            ],
+        ]);
+
+        $this->assertSame('Harbor Jazz Night', $merged['stops'][0]['name']);
+        $this->assertSame(12, $merged['stops'][0]['event_id']);
+        $this->assertSame('https://example.test/harbor-jazz', $merged['stops'][0]['venue_url']);
+        $this->assertStringContainsString('early set', $merged['stops'][0]['activity']);
+    }
+
+    public function test_catalog_events_do_not_steal_a_different_stop(): void
+    {
+        $merged = PlanConsistency::mergeRequiredStops([
+            'stops' => [
+                [
+                    'time' => '5:40 PM',
+                    'name' => 'A Cappella Books',
+                    'activity' => 'Arrive at A Cappella Books a few minutes early for the author talk in Atlanta.',
+                    'notes' => 'Historic Fourth Ward Park is later. Stay for the signing.',
+                ],
+                [
+                    'time' => '8:45 PM',
+                    'name' => 'Late Dinner at Ponce City Market Food Hall',
+                    'activity' => 'Walk to Ponce City Market.',
+                    'notes' => 'Botiwalla kati rolls.',
+                ],
+            ],
+        ], [
+            [
+                'name' => 'Jazz in the Park ATL with a Taste of R&B',
+                'time' => '5:45 PM',
+                'activity' => 'Outdoor jazz in the park.',
+                'notes' => 'Historic Fourth Ward Park, Atlanta, GA',
+                'event_id' => 44,
+            ],
+        ]);
+
+        $this->assertCount(3, $merged['stops']);
+        $this->assertSame('Jazz in the Park ATL with a Taste of R&B', $merged['stops'][0]['name']);
+        $this->assertSame(44, $merged['stops'][0]['event_id']);
+        $this->assertSame('A Cappella Books', $merged['stops'][1]['name']);
+        $this->assertStringContainsString('author talk', $merged['stops'][1]['activity']);
+        $this->assertSame('Late Dinner at Ponce City Market Food Hall', $merged['stops'][2]['name']);
+    }
 }

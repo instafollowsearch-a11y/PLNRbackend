@@ -354,6 +354,33 @@ class PlaceListingLookupTest extends TestCase
         $this->assertSame($stop, $missed['stops'][0]);
     }
 
+    public function test_an_unmatched_filler_is_dropped_when_another_stop_matches(): void
+    {
+        config(['services.google.places_key' => 'test-places-key']);
+        Http::fake(function ($request) {
+            if (str_contains($request->body(), 'Elephant Room')) {
+                return Http::response([
+                    'places' => [[
+                        'displayName' => ['text' => 'Elephant Room'],
+                        'formattedAddress' => 'Austin, TX',
+                    ]],
+                ]);
+            }
+
+            return Http::response(['places' => []], 200);
+        });
+
+        $content = app(PlaceListingLookup::class)->enrich([
+            'stops' => [
+                ['time' => '8:00 PM', 'name' => 'Elephant Room', 'activity' => 'Jazz', 'notes' => '', 'event_id' => 41],
+                ['time' => '10:00 PM', 'name' => 'Invented Disco', 'activity' => 'Dancing', 'notes' => ''],
+            ],
+        ], 'Austin');
+
+        $this->assertCount(1, $content['stops']);
+        $this->assertSame('Elephant Room', $content['stops'][0]['name']);
+    }
+
     public function test_a_failed_lookup_leaves_that_stop_unchanged(): void
     {
         config(['services.google.places_key' => 'test-places-key']);

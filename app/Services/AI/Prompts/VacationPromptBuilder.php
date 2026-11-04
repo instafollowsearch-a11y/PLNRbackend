@@ -17,7 +17,7 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
 
     public function suggestionSystemPrompt(): string
     {
-        return $this->withPricingRealism('You are a vacation planning assistant. Return only valid JSON with key "suggestions" containing 3 to 5 objects. Each object must have: name (string), description (string), estimated_cost_total (number), highlights (array of strings). Prefer real local events from the user prompt when relevant; you may combine or suggest alternatives.');
+        return $this->withCatalogRules('You are a vacation planning assistant. Return only valid JSON with key "suggestions" containing 3 to 5 objects. Each object must have: name (string), description (string), estimated_cost_total (number), highlights (array of strings), event_ids (array of catalog event_id numbers).');
     }
 
     public function suggestionUserPrompt(PlanSession $session): string
@@ -31,13 +31,13 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
 
     public function itinerarySystemPrompt(): string
     {
-        return $this->withPricingRealism('You are a vacation itinerary planner. Return only valid compact JSON with keys: title (string), summary (string), days (array of objects with date, theme, stops where each stop has time, name, activity, notes, and cost_per_person). cost_per_person is an estimated number for one person. Omit cost_per_person when you do not have an estimate. Use the year from the travel dates on every day label.');
+        return $this->withItineraryDetail('You are a vacation itinerary planner. Return only valid JSON with keys: title (string), summary (string), days (array of objects with date, theme, stops where each stop has time, name, activity, notes, and cost_per_person). cost_per_person is an estimated number for one person. Omit cost_per_person when you do not have an estimate. Use the year from the travel dates on every day label.');
     }
 
     public function itineraryUserPrompt(PlanSession $session, Suggestion $suggestion): string
     {
         $lines = [
-            'Create a multi-day vacation itinerary as compact JSON only.',
+            'Create a multi-day vacation itinerary as JSON only. Make each day fuller than the suggestion card.',
             $this->itineraryLengthInstruction($session),
         ];
         $range = $this->tripRange($session);
@@ -63,6 +63,7 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
                 is_array($item['highlights'] ?? null) ? $item['highlights'] : [],
                 fn ($highlight) => is_string($highlight) && $highlight !== '',
             )),
+            'event_ids' => $this->eventIdsFrom($item),
         ];
     }
 
@@ -168,11 +169,11 @@ class VacationPromptBuilder extends AbstractPlanPromptBuilder
         $days = $this->inclusiveTripDays($session);
 
         if ($days !== null && $days >= 1 && $days <= 10) {
-            return 'Cover each day from the travel dates. Return one days entry per day, with up to 3 stops. Notes may be under 25 words. Include venue_url or maps_url only when you know a real https link.';
+            return 'Cover each day from the travel dates. Return one days entry per day, with up to 3 stops. Notes should be a short paragraph. Include venue_url or maps_url only when you know a real https link.';
         }
 
         if ($days !== null && $days >= 11 && $days <= 31) {
-            return 'Cover each day from the travel dates. Return one days entry per day, with exactly 1 stop. Keep notes under 8 words. Do not include venue_url or maps_url.';
+            return 'Cover each day from the travel dates. Return one days entry per day, with exactly 1 stop. Keep notes to one or two sentences. Do not include venue_url or maps_url.';
         }
 
         return 'This stay is long. Return one days entry per week, covering the whole trip. Each entry date is the week span. Include 2 to 3 stops. Do not add a stop for every day.';

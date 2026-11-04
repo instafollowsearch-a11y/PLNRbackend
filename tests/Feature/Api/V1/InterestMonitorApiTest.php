@@ -5,14 +5,31 @@ namespace Tests\Feature\Api\V1;
 use App\Models\Event;
 use App\Models\InterestMatch;
 use App\Models\InterestScan;
+use App\Models\PlanSession;
+use App\Models\PlanType;
 use App\Models\User;
+use App\Services\Events\CityListingInventory;
+use App\Services\Interests\ScanUserInterests;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class InterestMonitorApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config([
+            'services.events.sources' => [],
+            'services.anthropic.key' => 'test-key',
+            'services.anthropic.url' => 'https://api.anthropic.com/v1/messages',
+        ]);
+    }
 
     public function test_scan_matches_city_interests_and_skips_empty_accounts(): void
     {
@@ -176,5 +193,107 @@ class InterestMonitorApiTest extends TestCase
             ->assertJsonPath('message', 'Interest scan finished.');
 
         $this->assertSame(1, InterestMatch::query()->count());
+    }
+
+    public function test_street_address_city_matches_austin_live_music(): void
+    {
+        $fan = User::factory()->create([
+            'name' => 'Dawit Mogessie',
+            'email' => 'dterefe0@gmail.com',
+            'city' => '510 Guadalupe Street, Austin, Texas',
+            'interests' => ['Live music', 'Comedy shows'],
+        ]);
+        Event::factory()->create([
+            'city' => 'Austin',
+            'title' => 'Jazz at the Continental',
+            'description' => 'A late set',
+            'starts_at' => now()->addDay(),
+            'url' => 'https://events.example/jazz',
+        ]);
+
+        $this->artisan('interests:scan')->assertSuccessful();
+
+        $this->assertDatabaseHas('interest_matches', [
+            'user_id' => $fan->id,
+            'matched_interest' => 'Live music',
+        ]);
+    }
+
+    public function test_scan_scouts_once_per_city_and_skips_open_to_suggestions(): void
+    {
+        Http::fake(fn () => Http::response([
+            'id' => 'msg_interest',
+            'type' => 'message',
+            'role' => 'assistant',
+            'content' => [[
+                'type' => 'text',
+                'text' => json_encode([
+                    'recommendations' => [[
+                        'title' => 'Last year',
+                        'venue' => 'Nowhere',
+                        'starts_at' => now()->subYear()->toIso8601String(),
+                        'url' => 'https://eventbrite.com/e/old',
+                        'source' => 'eventbrite',
+                    ], [
+                        'title' => 'Harbor Concert',
+                        'venue' => 'Harbor Stage',
+                        'starts_at' => now()->addDays(2)->toIso8601String(),
+                        'url' => 'https://eventbrite.com/e/harbor-concert',
+                        'source' => 'eventbrite',
+                    ]],
+                ]),
+            ]],
+        ]));
+
+        User::factory()->create([
+            'city' => 'Austin',
+            'interests' => ['Live music'],
+        ]);
+        User::factory()->create([
+            'city' => 'Austin, Texas',
+            'interests' => ['Live music'],
+        ]);
+        $planType = PlanType::factory()->create(['slug' => 'night_out']);
+        $addis = User::factory()->create([
+            'city' => 'Austin',
+            'interests' => ['Theater'],
+        ]);
+        PlanSession::factory()->create([
+            'user_id' => $addis->id,
+            'plan_type_id' => $planType->id,
+            'city' => 'Addis Ababa',
+            'answers' => [
+                'city' => 'Addis Ababa',
+                'interests' => 'Club / nightlife',
+            ],
+        ]);
+
+        Cache::flush();
+        app(ScanUserInterests::class)->run();
+
+        $this->assertDatabaseHas('events', [
+            'city' => 'Austin',
+            'title' => 'Harbor Concert',
+        ]);
+        $this->assertDatabaseMissing('events', [
+            'title' => 'Last year',
+        ]);
+        $this->assertSame(1, collect(Http::recorded())->filter(function (array $pair): bool {
+            $body = json_decode((string) $pair[0]->body(), true);
+
+            return is_array($body) && ($body['tools'][0]['name'] ?? null) === 'web_search';
+        })->count());
+        $this->assertDatabaseMissing('interest_matches', [
+            'matched_interest' => 'Club / nightlife',
+        ]);
+        $this->assertGreaterThanOrEqual(2, InterestMatch::query()->where('matched_interest', 'Live music')->count());
+    }
+
+    public function test_city_listing_inventory_normalizes_street_addresses(): void
+    {
+        $this->assertSame(
+            'Austin',
+            app(CityListingInventory::class)->cityKey('510 Guadalupe Street, Austin, Texas'),
+        );
     }
 }

@@ -189,25 +189,7 @@ class PlanConsistency
             return true;
         }
 
-        $stops = [];
-
-        foreach ($content['stops'] ?? [] as $stop) {
-            if (is_array($stop) && is_string($stop['name'] ?? null)) {
-                $stops[] = $stop['name'];
-            }
-        }
-
-        foreach ($content['days'] ?? [] as $day) {
-            if (! is_array($day)) {
-                continue;
-            }
-
-            foreach ($day['stops'] ?? [] as $stop) {
-                if (is_array($stop) && is_string($stop['name'] ?? null)) {
-                    $stops[] = $stop['name'];
-                }
-            }
-        }
+        $stops = self::stopNames($content);
 
         foreach ($places as $place) {
             foreach ($stops as $stop) {
@@ -218,6 +200,86 @@ class PlanConsistency
         }
 
         return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $content
+     * @param  list<string>  $places
+     */
+    public static function usesAllPlaces(array $content, array $places): bool
+    {
+        if ($places === []) {
+            return true;
+        }
+
+        $stops = self::stopNames($content);
+
+        foreach ($places as $place) {
+            $matched = false;
+
+            foreach ($stops as $stop) {
+                if (self::overlaps($place, $stop)) {
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if (! $matched) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static function namesOverlap(string $left, string $right): bool
+    {
+        return self::overlaps($left, $right);
+    }
+
+    /**
+     * @param  array<string, mixed>  $content
+     * @param  list<array<string, mixed>>  $requiredStops
+     * @return array<string, mixed>
+     */
+    public static function mergeRequiredStops(array $content, array $requiredStops): array
+    {
+        if ($requiredStops === []) {
+            return $content;
+        }
+
+        if (isset($content['stops']) && is_array($content['stops'])) {
+            $content['stops'] = self::mergeStopList($content['stops'], $requiredStops);
+
+            return $content;
+        }
+
+        if (isset($content['days']) && is_array($content['days']) && $content['days'] !== []) {
+            $missing = $requiredStops;
+
+            foreach ($content['days'] as $dayIndex => $day) {
+                if (! is_array($day) || ! isset($day['stops']) || ! is_array($day['stops'])) {
+                    continue;
+                }
+
+                $content['days'][$dayIndex]['stops'] = self::mergeStopList($day['stops'], $requiredStops);
+                $missing = array_values(array_filter(
+                    $missing,
+                    fn (array $need): bool => ! self::listHasName($content['days'][$dayIndex]['stops'], (string) ($need['name'] ?? '')),
+                ));
+            }
+
+            if ($missing !== [] && is_array($content['days'][0] ?? null)) {
+                $firstStops = is_array($content['days'][0]['stops'] ?? null) ? $content['days'][0]['stops'] : [];
+                $content['days'][0]['stops'] = array_merge($missing, $firstStops);
+            }
+
+            return $content;
+        }
+
+        $content['stops'] = $requiredStops;
+
+        return $content;
     }
 
     /**
@@ -359,10 +421,138 @@ class PlanConsistency
         return false;
     }
 
+    /**
+     * @param  array<string, mixed>  $content
+     * @return list<string>
+     */
+    private static function stopNames(array $content): array
+    {
+        $stops = [];
+
+        foreach ($content['stops'] ?? [] as $stop) {
+            if (is_array($stop) && is_string($stop['name'] ?? null)) {
+                $stops[] = $stop['name'];
+            }
+        }
+
+        foreach ($content['days'] ?? [] as $day) {
+            if (! is_array($day)) {
+                continue;
+            }
+
+            foreach ($day['stops'] ?? [] as $stop) {
+                if (is_array($stop) && is_string($stop['name'] ?? null)) {
+                    $stops[] = $stop['name'];
+                }
+            }
+        }
+
+        return $stops;
+    }
+
+    /**
+     * @param  list<mixed>  $stops
+     * @param  list<array<string, mixed>>  $required
+     * @return list<mixed>
+     */
+    private static function mergeStopList(array $stops, array $required): array
+    {
+        foreach ($required as $need) {
+            $name = trim((string) ($need['name'] ?? ''));
+
+            if ($name === '') {
+                continue;
+            }
+
+            $found = false;
+
+            foreach ($stops as $index => $stop) {
+                if (! is_array($stop)) {
+                    continue;
+                }
+
+                if (! self::stopMatchesNeed($stop, $need)) {
+                    continue;
+                }
+
+                $stop['name'] = $name;
+                $stop['event_id'] = $need['event_id'] ?? $stop['event_id'] ?? null;
+                $stop['activity'] = self::richerText((string) ($stop['activity'] ?? ''), (string) ($need['activity'] ?? ''));
+                $stop['notes'] = self::richerText((string) ($stop['notes'] ?? ''), (string) ($need['notes'] ?? ''));
+
+                if (empty($stop['venue_url']) && ! empty($need['venue_url'])) {
+                    $stop['venue_url'] = $need['venue_url'];
+                }
+
+                if (trim((string) ($stop['time'] ?? '')) === '' && ! empty($need['time'])) {
+                    $stop['time'] = $need['time'];
+                }
+
+                $stops[$index] = $stop;
+                $found = true;
+                break;
+            }
+
+            if (! $found) {
+                array_unshift($stops, $need);
+            }
+        }
+
+        return array_values($stops);
+    }
+
+    /**
+     * @param  list<mixed>  $stops
+     */
+    private static function listHasName(array $stops, string $name): bool
+    {
+        foreach ($stops as $stop) {
+            if (is_array($stop) && self::stopMatchesNeed($stop, ['name' => $name])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $stop
+     * @param  array<string, mixed>  $need
+     */
+    private static function stopMatchesNeed(array $stop, array $need): bool
+    {
+        $needName = trim((string) ($need['name'] ?? ''));
+        $stopName = trim((string) ($stop['name'] ?? ''));
+
+        if ($needName !== '' && $stopName !== '' && self::overlaps($needName, $stopName)) {
+            return true;
+        }
+
+        $venue = trim((string) ($need['notes'] ?? $need['venue'] ?? ''));
+
+        return $venue !== '' && $stopName !== '' && self::overlaps($venue, $stopName);
+    }
+
+    private static function richerText(string $written, string $fallback): string
+    {
+        $written = trim($written);
+        $fallback = trim($fallback);
+
+        if ($written === '') {
+            return $fallback;
+        }
+
+        if ($fallback === '') {
+            return $written;
+        }
+
+        return mb_strlen($written) >= mb_strlen($fallback) ? $written : $fallback;
+    }
+
     private static function overlaps(string $place, string $stop): bool
     {
-        $place = strtolower(trim($place));
-        $stop = strtolower(trim($stop));
+        $place = self::nameKey($place);
+        $stop = self::nameKey($stop);
 
         if ($place === '' || $stop === '') {
             return false;
@@ -372,10 +562,64 @@ class PlanConsistency
             return true;
         }
 
-        $shorter = strlen($place) <= strlen($stop) ? $place : $stop;
-        $longer = $shorter === $place ? $stop : $place;
+        $compactPlace = str_replace(' ', '', $place);
+        $compactStop = str_replace(' ', '', $stop);
 
-        return strlen($shorter) >= 4 && str_contains($longer, $shorter);
+        if (strlen($compactPlace) >= 5 && str_contains($compactStop, $compactPlace)) {
+            return true;
+        }
+
+        if (strlen($compactStop) >= 5 && str_contains($compactPlace, $compactStop)) {
+            return true;
+        }
+
+        $placeTokens = self::significantTokens($place);
+        $stopTokens = self::significantTokens($stop);
+
+        if ($placeTokens === [] || $stopTokens === []) {
+            $shorter = strlen($place) <= strlen($stop) ? $place : $stop;
+            $longer = $shorter === $place ? $stop : $place;
+
+            return strlen($shorter) >= 4 && str_contains($longer, $shorter);
+        }
+
+        $shared = array_values(array_intersect($placeTokens, $stopTokens));
+
+        if ($shared === []) {
+            return false;
+        }
+
+        foreach ($shared as $token) {
+            if (strlen($token) >= 5) {
+                return true;
+            }
+        }
+
+        return count($shared) >= 2;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function significantTokens(string $normalized): array
+    {
+        $noise = [
+            'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'from',
+            'bar', 'club', 'lounge', 'restaurant', 'cafe', 'theatre', 'theater', 'venue',
+            'live', 'night', 'show', 'presents', 'featuring', 'event', 'tickets',
+            'park', 'atlanta', 'georgia', 'usa', 'taste', 'historic', 'ward',
+        ];
+        $tokens = [];
+
+        foreach (preg_split('/\s+/', $normalized) ?: [] as $token) {
+            if (strlen($token) < 3 || in_array($token, $noise, true)) {
+                continue;
+            }
+
+            $tokens[] = $token;
+        }
+
+        return array_values(array_unique($tokens));
     }
 
     private static function money(float $cost): string
