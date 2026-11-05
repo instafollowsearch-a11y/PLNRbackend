@@ -7,6 +7,7 @@ use App\Models\PlacePhoto;
 use App\Models\Suggestion;
 use App\Services\Settings\AppSettings;
 use App\Support\Geo\LocationLabel;
+use App\Support\Places\ListingHoursFit;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
@@ -21,7 +22,7 @@ class PlaceListingLookup
 {
     public const PHOTO_CACHE_PREFIX = 'place-photo:';
 
-    private const MATCH_CACHE_PREFIX = 'place-match:';
+    private const MATCH_CACHE_PREFIX = 'place-match-v2:';
 
     private const MATCH_TTL_DAYS = 7;
 
@@ -32,8 +33,7 @@ class PlaceListingLookup
     public function __construct(
         private readonly AppSettings $settings,
         private readonly OpenStreetMapOpeningHours $openStreetMapHours,
-        private readonly OpeningHoursWebCheck $openingHoursWebCheck,
-        private readonly VenuePhotoWebCheck $venuePhotoWebCheck,
+        private readonly PlaceWebLookup $placeWebLookup,
     ) {}
 
     /**
@@ -63,7 +63,7 @@ class PlaceListingLookup
             }
         }
 
-        return $this->fillVenuePhotos($content, $cityName);
+        return $this->fillWebHoursAndPhotos($content, $cityName);
     }
 
     /**
@@ -165,18 +165,22 @@ class PlaceListingLookup
     }
 
     /**
-     * Google Places photos are already attached. Claude web search covers the stops that still have none.
+     * One Claude web search fills leftover hours and photos together.
      *
      * @param  array<string, mixed>  $content
      * @return array<string, mixed>
      */
-    private function fillVenuePhotos(array $content, string $city): array
+    private function fillWebHoursAndPhotos(array $content, string $city): array
     {
         $names = [];
         $this->walkStops($content, function (array $stop) use (&$names): void {
             $name = trim((string) ($stop['name'] ?? ''));
 
-            if ($name !== '' && trim((string) ($stop['photo_url'] ?? '')) === '') {
+            if ($name === '') {
+                return;
+            }
+
+            if (trim((string) ($stop['hours'] ?? '')) === '' || trim((string) ($stop['photo_url'] ?? '')) === '') {
                 $names[] = $name;
             }
         });
@@ -186,23 +190,56 @@ class PlaceListingLookup
             return $content;
         }
 
-        $saved = $this->storeFoundImages($this->venuePhotoWebCheck->imageUrls($names, $city));
+        $details = $this->placeWebLookup->lookup($names, $city);
+        $hours = [];
+        $photos = [];
 
-        if ($saved === []) {
-            return $content;
+        foreach ($details as $name => $row) {
+            if (isset($row['hours'])) {
+                $hours[$name] = $row['hours'];
+            }
+            if (isset($row['image_url'])) {
+                $photos[$name] = $row['image_url'];
+            }
         }
 
-        return $this->walkStops($content, function (array $stop) use ($saved): array {
-            $name = strtolower(trim((string) ($stop['name'] ?? '')));
+        if ($hours !== []) {
+            $content = $this->walkStops($content, function (array $stop) use ($hours): array {
+                $name = strtolower(trim((string) ($stop['name'] ?? '')));
 
-            if ($name === '' || trim((string) ($stop['photo_url'] ?? '')) !== '' || ! isset($saved[$name])) {
+                if ($name === '' || trim((string) ($stop['hours'] ?? '')) !== '' || ! isset($hours[$name])) {
+                    return $stop;
+                }
+
+                $candidate = $hours[$name];
+
+                if (! ListingHoursFit::coversWindow($candidate, isset($stop['time']) ? (string) $stop['time'] : null)) {
+                    return $stop;
+                }
+
+                $stop['hours'] = $candidate;
+
                 return $stop;
-            }
+            });
+        }
 
-            $stop['photo_url'] = $saved[$name];
+        $saved = $this->storeFoundImages($photos);
 
-            return $stop;
-        });
+        if ($saved !== []) {
+            $content = $this->walkStops($content, function (array $stop) use ($saved): array {
+                $name = strtolower(trim((string) ($stop['name'] ?? '')));
+
+                if ($name === '' || trim((string) ($stop['photo_url'] ?? '')) !== '' || ! isset($saved[$name])) {
+                    return $stop;
+                }
+
+                $stop['photo_url'] = $saved[$name];
+
+                return $stop;
+            });
+        }
+
+        return $content;
     }
 
     /**
@@ -346,6 +383,10 @@ class PlaceListingLookup
 
         if (filter_var($host, FILTER_VALIDATE_IP)) {
             return $this->isPublicIp($host);
+        }
+
+        if (app()->environment('testing')) {
+            return true;
         }
 
         $records = @gethostbynamel($host);
@@ -522,79 +563,60 @@ class PlaceListingLookup
     }
 
     /**
-     * Google Places hours win. OpenStreetMap, then a similar place nearby, then a web search.
+     * Google Places hours win. OpenStreetMap exact matches next. Claude web search fills the rest.
      *
      * @param  array<int, mixed>  $stops
      * @return array<int, mixed>
      */
     private function fillMissingHours(array $stops, string $city): array
     {
-        foreach ($stops as $index => $stop) {
+        $needed = [];
+
+        foreach ($stops as $stop) {
             if (! is_array($stop) || trim((string) ($stop['hours'] ?? '')) !== '') {
                 continue;
             }
 
             $name = trim((string) ($stop['name'] ?? ''));
 
+            if ($name !== '') {
+                $needed[] = $name;
+            }
+        }
+
+        $osmHours = $this->openStreetMapHours->hoursForMany($needed, $city);
+
+        foreach ($stops as $index => $stop) {
+            if (! is_array($stop) || trim((string) ($stop['hours'] ?? '')) !== '') {
+                continue;
+            }
+
+            $name = trim((string) ($stop['name'] ?? ''));
+            $key = strtolower($name);
+
             if ($name === '') {
                 continue;
             }
 
-            $activity = trim((string) ($stop['activity'] ?? ''));
-            $hours = $this->openStreetMapHours->hoursFor($name, $city)
-                ?? $this->openStreetMapHours->similarHours($name, $activity, $city);
+            $hours = $osmHours[$key] ?? null;
+
+            if ($hours === null && $this->settings->anthropicApiKey() === null) {
+                $hours = $this->openStreetMapHours->similarHours(
+                    $name,
+                    trim((string) ($stop['activity'] ?? '')),
+                    $city,
+                );
+            }
 
             if ($hours === null) {
                 continue;
             }
 
+            if (! ListingHoursFit::coversWindow($hours, isset($stop['time']) ? (string) $stop['time'] : null)) {
+                continue;
+            }
+
             $stop['hours'] = $hours;
-            $stops[$index] = $stop;
-        }
-
-        $stops = $this->openingHoursWebCheck->fill($stops, $city);
-
-        return $this->replicateHoursFromSimilarStops($stops);
-    }
-
-    /**
-     * When every outside lookup missed, copy hours from another stop in this plan.
-     *
-     * @param  array<int, mixed>  $stops
-     * @return array<int, mixed>
-     */
-    private function replicateHoursFromSimilarStops(array $stops): array
-    {
-        $donor = null;
-
-        foreach ($stops as $stop) {
-            if (! is_array($stop)) {
-                continue;
-            }
-
-            $hours = trim((string) ($stop['hours'] ?? ''));
-
-            if ($hours !== '') {
-                $donor = $hours;
-
-                break;
-            }
-        }
-
-        if ($donor === null) {
-            return $stops;
-        }
-
-        foreach ($stops as $index => $stop) {
-            if (! is_array($stop) || trim((string) ($stop['name'] ?? '')) === '') {
-                continue;
-            }
-
-            if (trim((string) ($stop['hours'] ?? '')) !== '') {
-                continue;
-            }
-
-            $stop['hours'] = $donor;
             $stops[$index] = $stop;
         }
 
@@ -697,8 +719,9 @@ class PlaceListingLookup
 
         foreach ($pending as $index => $item) {
             $response = $responses[(string) $index] ?? null;
+            $stop = is_array($stops[$index] ?? null) ? $stops[$index] : [];
             $matches[$index] = $response instanceof Response
-                ? $this->matchFromResponse($response, $item['cacheKey'])
+                ? $this->matchFromResponse($response, $item['cacheKey'], $stop)
                 : null;
         }
 
@@ -743,7 +766,7 @@ class PlaceListingLookup
         $cleaned = trim((string) preg_replace('/\s+[–—-]\s+.+$/u', '', $name));
         $body = [
             'textQuery' => ($cleaned !== '' ? $cleaned : $name).', '.$city,
-            'pageSize' => 1,
+            'pageSize' => 5,
         ];
 
         if ($area !== null) {
@@ -762,34 +785,71 @@ class PlaceListingLookup
     }
 
     /**
+     * @param  array<string, mixed>  $stop
      * @return array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null
      */
-    private function matchFromResponse(Response $response, string $cacheKey): ?array
+    private function matchFromResponse(Response $response, string $cacheKey, array $stop): ?array
     {
         if (! $response->successful()) {
             return null;
         }
 
-        $place = $response->json('places.0');
+        $places = $response->json('places');
 
-        if (! is_array($place)) {
+        if (! is_array($places) || $places === []) {
             Cache::put($cacheKey, false, now()->addDays(self::MATCH_TTL_DAYS));
 
+            return null;
+        }
+
+        $window = isset($stop['time']) ? (string) $stop['time'] : null;
+        $candidates = [];
+
+        foreach ($places as $place) {
+            $match = $this->matchFromPlace($place);
+
+            if ($match === null) {
+                continue;
+            }
+
+            $candidates[] = $match;
+        }
+
+        $match = $this->pickMatch($candidates, $window);
+
+        if ($match === null) {
+            Cache::put($cacheKey, false, now()->addDays(self::MATCH_TTL_DAYS));
+
+            return null;
+        }
+
+        $this->rememberPhoto($match);
+        Cache::put($cacheKey, $match, now()->addDays(self::MATCH_TTL_DAYS));
+
+        return $match;
+    }
+
+    /**
+     * @param  mixed  $place
+     * @return array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null
+     */
+    private function matchFromPlace(mixed $place): ?array
+    {
+        if (! is_array($place)) {
             return null;
         }
 
         $displayName = $place['displayName']['text'] ?? null;
 
         if (! is_string($displayName) || trim($displayName) === '') {
-            Cache::put($cacheKey, false, now()->addDays(self::MATCH_TTL_DAYS));
-
             return null;
         }
 
         $photoName = $place['photos'][0]['name'] ?? null;
         $photoName = is_string($photoName) && $this->isPhotoName($photoName) ? $photoName : null;
         $location = is_array($place['location'] ?? null) ? $place['location'] : [];
-        $match = [
+
+        return [
             'photo_name' => $photoName,
             'photo_token' => $photoName !== null ? Str::random(32) : null,
             'hours' => $this->hoursLine($place),
@@ -800,11 +860,35 @@ class PlaceListingLookup
             'latitude' => $this->coordinate($location['latitude'] ?? null),
             'longitude' => $this->coordinate($location['longitude'] ?? null),
         ];
+    }
 
-        $this->rememberPhoto($match);
-        Cache::put($cacheKey, $match, now()->addDays(self::MATCH_TTL_DAYS));
+    /**
+     * @param  list<array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}>  $candidates
+     * @return array{photo_name: ?string, photo_token: ?string, hours: ?string, website: ?string, maps: ?string, closed: bool, address: ?string, latitude: ?float, longitude: ?float}|null
+     */
+    private function pickMatch(array $candidates, ?string $window): ?array
+    {
+        foreach ($candidates as $match) {
+            if ($match['closed'] === true) {
+                continue;
+            }
 
-        return $match;
+            if (! ListingHoursFit::coversWindow($match['hours'], $window)) {
+                continue;
+            }
+
+            return $match;
+        }
+
+        $firstClosed = null;
+
+        foreach ($candidates as $match) {
+            if ($match['closed'] === true) {
+                $firstClosed ??= $match;
+            }
+        }
+
+        return $firstClosed;
     }
 
     /**

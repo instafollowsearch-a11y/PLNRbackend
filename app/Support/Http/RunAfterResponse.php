@@ -27,16 +27,37 @@ class RunAfterResponse
             return null;
         }
 
+        self::afterFlush($work);
+
+        return response()->json([
+            'data' => [
+                'status' => 'generating',
+            ],
+            'message' => 'Still working.',
+        ], 202);
+    }
+
+    /**
+     * Keep the current JSON status (e.g. 201 create) and run work after the client has the body.
+     *
+     * @param  callable(): void  $work
+     */
+    public static function afterFlush(callable $work): void
+    {
+        if (self::inline()) {
+            return;
+        }
+
         ignore_user_abort(true);
 
-        // Stay in this PHP request after the 202 is flushed. A queued job would
-        // wait for a worker, and leaving the app would still cancel the plan.
         app()->terminating(static function () use ($work): void {
             ignore_user_abort(true);
 
             if (function_exists('set_time_limit')) {
                 set_time_limit(0);
             }
+
+            self::releaseClient();
 
             try {
                 $work();
@@ -46,12 +67,30 @@ class RunAfterResponse
                 ]);
             }
         });
+    }
 
-        return response()->json([
-            'data' => [
-                'status' => 'generating',
-            ],
-            'message' => 'Still working.',
-        ], 202);
+    private static function releaseClient(): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+
+            return;
+        }
+
+        if (function_exists('litespeed_finish_request')) {
+            litespeed_finish_request();
+
+            return;
+        }
+
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+
+        flush();
     }
 }

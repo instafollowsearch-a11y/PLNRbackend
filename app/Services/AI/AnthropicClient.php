@@ -28,9 +28,9 @@ class AnthropicClient implements AiChatClient
      */
     public function chat(array $messages, bool $jsonMode = true, ?int $maxTokens = null, array $options = []): array
     {
-        // Claude suggestion/itinerary calls often exceed PHP's default 30s limit.
+        // Scout + itinerary + hours lookups can chain past 180s in one request.
         if (function_exists('set_time_limit')) {
-            set_time_limit(180);
+            set_time_limit(0);
         }
 
         $maxTokens ??= self::DEFAULT_MAX_TOKENS;
@@ -74,7 +74,15 @@ class AnthropicClient implements AiChatClient
                 ? max($maxTokens, 12288)
                 : $maxTokens;
 
-            $retryResponse = $this->request($retryMessages, true, $retryMaxTokens, $options);
+            $repairOptions = $options;
+            unset(
+                $repairOptions['web_search'],
+                $repairOptions['web_search_max_uses'],
+                $repairOptions['web_search_allowed_callers'],
+                $repairOptions['web_search_allowed_domains'],
+                $repairOptions['web_search_tool_type'],
+            );
+            $retryResponse = $this->request($retryMessages, true, $retryMaxTokens, $repairOptions);
             $retryContent = $this->extractTextContent($retryResponse['content'] ?? null);
 
             if ($retryContent === '') {
@@ -125,8 +133,9 @@ class AnthropicClient implements AiChatClient
 
         $useWebSearch = (bool) ($options['web_search'] ?? false);
 
+        $model = trim((string) ($options['model'] ?? ''));
         $payload = [
-            'model' => $this->settings->anthropicModel(),
+            'model' => $model !== '' ? $model : $this->settings->anthropicModel(),
             'max_tokens' => $maxTokens,
             'messages' => $anthropicMessages,
             'temperature' => $useWebSearch ? 0.4 : 0.7,
@@ -145,6 +154,16 @@ class AnthropicClient implements AiChatClient
                 'max_uses' => max(1, (int) ($options['web_search_max_uses'] ?? 6)),
             ];
 
+            $allowedCallers = $options['web_search_allowed_callers'] ?? null;
+            if (is_array($allowedCallers) && $allowedCallers !== []) {
+                $tool['allowed_callers'] = array_values($allowedCallers);
+            }
+
+            $allowedDomains = $options['web_search_allowed_domains'] ?? null;
+            if (is_array($allowedDomains) && $allowedDomains !== []) {
+                $tool['allowed_domains'] = array_values($allowedDomains);
+            }
+
             $userLocation = $options['user_location'] ?? null;
             if (is_array($userLocation) && $userLocation !== []) {
                 $tool['user_location'] = $userLocation;
@@ -154,10 +173,31 @@ class AnthropicClient implements AiChatClient
         }
 
         $timeout = $useWebSearch ? 180 : 120;
+        $json = $this->postMessage($payload, $timeout);
+        $pauses = 0;
+        $pauseLimit = max(0, (int) ($options['web_search_pause_limit'] ?? 2));
 
+        while (($json['stop_reason'] ?? null) === 'pause_turn' && $pauses < $pauseLimit) {
+            $pauses++;
+            $payload['messages'][] = [
+                'role' => 'assistant',
+                'content' => $json['content'] ?? [],
+            ];
+            $json = $this->postMessage($payload, $timeout);
+        }
+
+        return $json;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function postMessage(array $payload, int $timeout): array
+    {
         try {
             $response = Http::withHeaders([
-                'x-api-key' => $apiKey,
+                'x-api-key' => $this->settings->anthropicApiKey(),
                 'anthropic-version' => '2023-06-01',
                 'content-type' => 'application/json',
             ])
@@ -174,7 +214,7 @@ class AnthropicClient implements AiChatClient
         /** @var array<string, mixed> $json */
         $json = $response->json();
 
-        return $json;
+        return is_array($json) ? $json : [];
     }
 
     /**

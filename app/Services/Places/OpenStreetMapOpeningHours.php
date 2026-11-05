@@ -3,6 +3,8 @@
 namespace App\Services\Places;
 
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Throwable;
@@ -16,30 +18,91 @@ class OpenStreetMapOpeningHours
      */
     public function hoursFor(string $name, string $city): ?string
     {
-        $name = trim($name);
+        $map = $this->hoursForMany([$name], $city);
+
+        return $map[strtolower(trim($name))] ?? null;
+    }
+
+    /**
+     * @param  list<string>  $names
+     * @return array<string, string> lowercase name => weekday hours line
+     */
+    public function hoursForMany(array $names, string $city): array
+    {
         $city = trim($city);
+        $unique = [];
 
-        if ($name === '' || $city === '') {
-            return null;
+        foreach ($names as $name) {
+            $name = trim($name);
+            if ($name !== '' && $city !== '') {
+                $unique[strtolower($name)] = $name;
+            }
         }
 
-        $cacheKey = self::CACHE_PREFIX.sha1(strtolower($city.'|'.$name));
-        $cached = Cache::get($cacheKey);
-
-        if ($cached === false) {
-            return null;
+        if ($unique === []) {
+            return [];
         }
 
-        if (is_string($cached) && trim($cached) !== '') {
-            return $cached;
+        $found = [];
+        $pending = [];
+
+        foreach ($unique as $key => $name) {
+            $cacheKey = self::CACHE_PREFIX.sha1(strtolower($city.'|'.$name));
+            $cached = Cache::get($cacheKey);
+
+            if ($cached === false) {
+                continue;
+            }
+
+            if (is_string($cached) && trim($cached) !== '') {
+                $found[$key] = $cached;
+                continue;
+            }
+
+            $pending[$key] = ['name' => $name, 'cacheKey' => $cacheKey];
         }
 
-        $raw = $this->openingHoursTag($name.', '.$city, $name);
-        $line = $raw === null ? null : $this->lineForToday($raw);
+        if ($pending === []) {
+            return $found;
+        }
 
-        Cache::put($cacheKey, $line ?? false, now()->addDays(7));
+        try {
+            $responses = Http::pool(function (Pool $pool) use ($pending, $city): void {
+                foreach ($pending as $key => $item) {
+                    $pool->as($key)
+                        ->acceptJson()
+                        ->withHeaders([
+                            'User-Agent' => (string) config('services.nominatim.user_agent'),
+                        ])
+                        ->timeout(4)
+                        ->get(rtrim((string) config('services.nominatim.url'), '/').'/search', [
+                            'q' => $item['name'].', '.$city,
+                            'format' => 'jsonv2',
+                            'extratags' => 1,
+                            'limit' => 8,
+                            'addressdetails' => 1,
+                            'accept-language' => 'en',
+                        ]);
+                }
+            });
+        } catch (Throwable) {
+            return $found;
+        }
 
-        return $line;
+        foreach ($pending as $key => $item) {
+            $response = $responses[$key] ?? null;
+            $raw = $response instanceof Response
+                ? $this->hoursTagFromResponse($response, $item['name'])
+                : null;
+            $line = $raw === null ? null : $this->lineForToday($raw);
+            Cache::put($item['cacheKey'], $line ?? false, now()->addDays(7));
+
+            if ($line !== null) {
+                $found[$key] = $line;
+            }
+        }
+
+        return $found;
     }
 
     /**
@@ -81,7 +144,7 @@ class OpenStreetMapOpeningHours
                 ->withHeaders([
                     'User-Agent' => (string) config('services.nominatim.user_agent'),
                 ])
-                ->timeout(8)
+                ->timeout(4)
                 ->get(rtrim((string) config('services.nominatim.url'), '/').'/search', [
                     'q' => $query,
                     'format' => 'jsonv2',
@@ -94,6 +157,11 @@ class OpenStreetMapOpeningHours
             return null;
         }
 
+        return $this->hoursTagFromResponse($response, $mustContainName);
+    }
+
+    private function hoursTagFromResponse(Response $response, ?string $mustContainName): ?string
+    {
         if (! $response->successful()) {
             return null;
         }

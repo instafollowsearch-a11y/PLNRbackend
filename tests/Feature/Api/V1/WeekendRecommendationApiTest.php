@@ -100,7 +100,8 @@ class WeekendRecommendationApiTest extends TestCase
 
             return is_array($body)
                 && ($body['tools'][0]['name'] ?? null) === 'web_search'
-                && (int) ($body['tools'][0]['max_uses'] ?? 0) === 3;
+                && (int) ($body['tools'][0]['max_uses'] ?? 0) === 2
+                && ($body['tools'][0]['allowed_callers'] ?? null) === ['direct'];
         }));
     }
 

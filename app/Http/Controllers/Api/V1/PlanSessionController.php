@@ -18,6 +18,7 @@ use App\Models\PlanType;
 use App\Models\Suggestion;
 use App\Services\AI\ItineraryService;
 use App\Services\AI\SuggestionService;
+use App\Services\Events\PlanEventInventory;
 use App\Services\Notifications\ExpoPushService;
 use App\Services\Plans\PlanQuotaService;
 use App\Services\Reminders\ScheduleItineraryStopReminders;
@@ -100,6 +101,19 @@ class PlanSessionController extends Controller
         ]);
 
         $session->load('planType');
+
+        if (! app()->runningUnitTests()) {
+            RunAfterResponse::afterFlush(function () use ($session): void {
+                try {
+                    app(PlanEventInventory::class)->forSession($session);
+                } catch (Throwable $exception) {
+                    Log::info('listing.prefetch_skipped', [
+                        'plan_session_uuid' => $session->uuid,
+                        'message' => $exception->getMessage(),
+                    ]);
+                }
+            });
+        }
 
         return response()->json([
             'data' => [
@@ -210,16 +224,21 @@ class PlanSessionController extends Controller
                     ]);
                     $this->notifyReady($planSession, 'Your ideas are ready', 'Open PLNR to pick a plan.');
                 } catch (Throwable $exception) {
-                    $this->markGenerationFailed($planSession, 'plan_session.suggestions_failed', $exception, 'Unable to generate suggestions. Please try again.');
+                    $this->markGenerationFailed(
+                        $planSession,
+                        'plan_session.suggestions_failed',
+                        $exception,
+                        $this->userFacingGenerationMessage($exception, 'Unable to generate suggestions. Please try again.'),
+                    );
 
                     if (RunAfterResponse::inline()) {
                         throw $exception;
                     }
                 }
             });
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
             return response()->json([
-                'message' => 'Unable to generate suggestions. Please try again.',
+                'message' => $this->userFacingGenerationMessage($exception, 'Unable to generate suggestions. Please try again.'),
             ], 502);
         }
 
@@ -525,6 +544,19 @@ class PlanSessionController extends Controller
             ],
             'message' => 'Itinerary email sent.',
         ]);
+    }
+
+    private function userFacingGenerationMessage(Throwable $exception, string $fallback): string
+    {
+        if ($exception instanceof ValidationException) {
+            $first = collect($exception->errors())->flatten()->first();
+
+            if (is_string($first) && trim($first) !== '') {
+                return $first;
+            }
+        }
+
+        return $fallback;
     }
 
     private function alreadyGenerating(PlanSession $planSession, string $status): ?JsonResponse

@@ -7,6 +7,7 @@ use App\Services\AI\AiChatClient;
 use App\Support\Geo\LocationLabel;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -15,9 +16,9 @@ class CityListingInventory
 {
     public const MAX_CATALOG = 24;
 
-    public const CACHE_SECONDS = 120;
+    public const CACHE_SECONDS = 600;
 
-    public const SCOUT_MAX_USES = 3;
+    public const SCOUT_MAX_USES = 2;
 
     public function __construct(
         private readonly AiChatClient $client,
@@ -49,32 +50,74 @@ class CityListingInventory
         }
 
         $cacheKey = $this->cacheKey($cityKey, $windowStart, $windowEnd);
+        $cached = $this->cachedEvents($cacheKey, $useCache);
 
-        if ($useCache) {
-            $cachedIds = Cache::get($cacheKey);
-            if (is_array($cachedIds) && $cachedIds !== []) {
-                $cached = Event::query()->whereIn('id', $cachedIds)->orderBy('starts_at')->get();
-                if ($cached->isNotEmpty()) {
-                    return $cached->values();
-                }
+        if ($cached !== null) {
+            return $cached;
+        }
 
-                Cache::forget($cacheKey);
+        $load = function () use ($city, $cityKey, $windowStart, $windowEnd, $interests, $allowScout, $discoveredVia, $useCache, $cacheKey): Collection {
+            $cached = $this->cachedEvents($cacheKey, $useCache);
+
+            if ($cached !== null) {
+                return $cached;
             }
-        }
 
-        $this->trySync($cityKey);
-        $events = $this->queryEvents($city, $cityKey, $windowStart, $windowEnd);
-
-        if ($allowScout) {
-            $this->scoutWeb($cityKey, $windowStart, $windowEnd, $events, $interests, $discoveredVia);
+            $syncStarted = microtime(true);
+            $this->trySync($cityKey);
+            Log::info('listing.sync_ms', [
+                'city' => $cityKey,
+                'ms' => (int) round((microtime(true) - $syncStarted) * 1000),
+            ]);
             $events = $this->queryEvents($city, $cityKey, $windowStart, $windowEnd);
+
+            if ($allowScout) {
+                $scoutStarted = microtime(true);
+                $this->scoutWeb($cityKey, $windowStart, $windowEnd, $events, $interests, $discoveredVia);
+                Log::info('listing.scout_ms', [
+                    'city' => $cityKey,
+                    'ms' => (int) round((microtime(true) - $scoutStarted) * 1000),
+                    'known' => $events->count(),
+                ]);
+                $events = $this->queryEvents($city, $cityKey, $windowStart, $windowEnd);
+            }
+
+            if ($useCache && $events->isNotEmpty()) {
+                Cache::put($cacheKey, $events->pluck('id')->all(), self::CACHE_SECONDS);
+            }
+
+            return $events->values();
+        };
+
+        try {
+            return Cache::lock('listing-fill:'.$cacheKey, 120)->block(90, $load);
+        } catch (LockTimeoutException) {
+            return $load();
+        }
+    }
+
+    /**
+     * @return Collection<int, Event>|null
+     */
+    private function cachedEvents(string $cacheKey, bool $useCache): ?Collection
+    {
+        if (! $useCache) {
+            return null;
         }
 
-        if ($useCache && $events->isNotEmpty()) {
-            Cache::put($cacheKey, $events->pluck('id')->all(), self::CACHE_SECONDS);
+        $cachedIds = Cache::get($cacheKey);
+        if (! is_array($cachedIds) || $cachedIds === []) {
+            return null;
         }
 
-        return $events->values();
+        $cached = Event::query()->whereIn('id', $cachedIds)->orderBy('starts_at')->get();
+        if ($cached->isEmpty()) {
+            Cache::forget($cacheKey);
+
+            return null;
+        }
+
+        return $cached->values();
     }
 
     public function cityKey(string $city): string
@@ -137,12 +180,11 @@ class CityListingInventory
         array $interests,
         string $discoveredVia,
     ): void {
-        $hint = $known->take(12)->map(fn (Event $event): array => [
+        $hint = $known->take(8)->map(fn (Event $event): array => [
             'title' => $event->title,
             'venue' => $event->venue_name,
             'starts_at' => $event->starts_at?->toIso8601String(),
             'url' => $this->links->urlFor($event),
-            'source' => $event->source,
         ])->values()->all();
 
         $filtered = array_values(array_filter(
@@ -161,7 +203,11 @@ class CityListingInventory
                         'content' => <<<'PROMPT'
 You are PLNR event scout. You MUST use web search. Find real, currently listed local events in the user's city that fall inside the date window.
 
-Search Eventbrite, Allevents, Luma, Find Local, Ticketmaster, and venue calendars. Use at most three searches: city + date + interest, then a listings site, then one fallback.
+Fire up to two independent searches in the same turn (in parallel, not one after the other):
+1) city + date window + interests + events/tickets
+2) the same city and dates on Eventbrite, Allevents, Luma, Find Local, Ticketmaster, or a venue calendar
+
+Stop as soon as you have enough dated listings. Do not run a third sequential search.
 
 Rules:
 - Only include events verified from search results (real titles, venues, dates).
@@ -191,9 +237,11 @@ PROMPT,
                 [
                     'web_search' => true,
                     'web_search_max_uses' => self::SCOUT_MAX_USES,
+                    'web_search_allowed_callers' => ['direct'],
                     'user_location' => [
                         'type' => 'approximate',
                         'city' => $cityKey,
+                        'timezone' => (string) config('app.timezone'),
                     ],
                 ],
             );
@@ -206,7 +254,7 @@ PROMPT,
             return;
         }
 
-        $this->scout->persistFromResponse(
+        $persisted = $this->scout->persistFromResponse(
             $response,
             $cityKey,
             $windowStart,
@@ -214,5 +262,9 @@ PROMPT,
             $discoveredVia,
             self::MAX_CATALOG,
         );
+        Log::info('listing.scout_persisted', [
+            'city' => $cityKey,
+            'persisted' => $persisted->count(),
+        ]);
     }
 }

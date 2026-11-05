@@ -131,12 +131,16 @@ class PlanSessionApiTest extends TestCase
     ): string {
         Mail::fake();
 
-        Http::fake([
-            config('services.anthropic.url') => Http::sequence()
-                ->push($this->anthropicFromFixture($suggestionsFixture))
-                ->push($this->anthropicFromFixture($suggestionsFixture))
-                ->push($this->anthropicFromFixture($itineraryFixture)),
-        ]);
+        $suggestions = $this->anthropicFromFixture($suggestionsFixture);
+        $itinerary = $this->anthropicFromFixture($itineraryFixture);
+        Http::fake(function ($request) use ($suggestions, $itinerary) {
+            $body = $request->body();
+            if (is_string($body) && str_contains($body, 'itinerary')) {
+                return Http::response($itinerary);
+            }
+
+            return Http::response($suggestions);
+        });
 
         $create = $this->postJson('/api/v1/plan-sessions', [
             'plan_type' => $planType,
@@ -269,6 +273,20 @@ class PlanSessionApiTest extends TestCase
         ])->assertCreated();
     }
 
+    public function test_creating_a_session_does_not_scout_before_the_response(): void
+    {
+        Http::fake();
+
+        $this->postJson('/api/v1/plan-sessions', [
+            'plan_type' => 'date_night',
+            'answers' => $this->validAnswers('date_night'),
+        ])->assertCreated()
+            ->assertJsonPath('message', 'Plan session created.')
+            ->assertJsonStructure(['data' => ['plan_session' => ['uuid']]]);
+
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'anthropic'));
+    }
+
     public function test_authenticated_user_session_is_linked_and_protected(): void
     {
         $user = User::factory()->create();
@@ -338,11 +356,10 @@ class PlanSessionApiTest extends TestCase
 
     public function test_follow_up_replaces_ideas_and_keeps_the_saved_itinerary(): void
     {
-        Http::fake([
-            config('services.anthropic.url') => Http::sequence()
-                ->push($this->anthropicResponseFromOpenAiFixture('suggestions_response.json'))
-                ->push($this->anthropicResponseFromOpenAiFixture('suggestions_response.json')),
-        ]);
+        $suggestions = $this->anthropicResponseFromOpenAiFixture('suggestions_response.json');
+        Http::fake(function () use ($suggestions) {
+            return Http::response($suggestions);
+        });
 
         $user = User::factory()->create();
         Sanctum::actingAs($user);
@@ -394,9 +411,17 @@ class PlanSessionApiTest extends TestCase
             collect($session->fresh()->refinement_messages)->pluck('content')->all(),
         );
 
-        $recorded = Http::recorded();
-        $firstPrompt = $this->anthropicUserPrompt($recorded[0][0]->data());
-        $secondPrompt = $this->anthropicUserPrompt($recorded[1][0]->data());
+        $prompts = collect(Http::recorded())
+            ->map(fn (array $pair): string => $this->anthropicUserPrompt($pair[0]->data()))
+            ->all();
+        $firstPrompt = collect($prompts)->first(
+            fn (string $prompt): bool => str_contains($prompt, 'Something cheaper') && str_contains($prompt, 'different plans that cost less'),
+            '',
+        );
+        $secondPrompt = collect($prompts)->first(
+            fn (string $prompt): bool => str_contains($prompt, 'More low-key') && str_contains($prompt, 'quieter, more low-key plan'),
+            '',
+        );
 
         $this->assertStringContainsString('Something cheaper', $firstPrompt);
         $this->assertStringContainsString('Jazz Crawl', $firstPrompt);

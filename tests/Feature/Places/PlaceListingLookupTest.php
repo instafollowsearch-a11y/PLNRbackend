@@ -18,6 +18,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PlaceListingLookupTest extends TestCase
@@ -30,6 +31,7 @@ class PlaceListingLookupTest extends TestCase
 
         $this->travelTo('2026-10-02 18:00:00');
         config(['services.anthropic.key' => null]);
+        Storage::disk('local')->deleteDirectory('place-photos');
     }
 
     public function test_a_matched_listing_adds_a_photo_address_hours_and_keeps_existing_links(): void
@@ -111,7 +113,7 @@ class PlaceListingLookupTest extends TestCase
         $this->assertSame('https://maps.example.com/kept', $stops[0]['maps_url']);
         $this->assertSame('https://example.com/kept', $stops[0]['external_url']);
         $this->assertArrayNotHasKey('photo_url', $stops[1]);
-        $this->assertSame('Friday: 5 PM–12 AM', $stops[1]['hours']);
+        $this->assertArrayNotHasKey('hours', $stops[1]);
         $this->assertArrayNotHasKey('maps_url', $stops[1]);
 
         $path = parse_url($stops[0]['photo_url'], PHP_URL_PATH);
@@ -745,6 +747,50 @@ class PlaceListingLookupTest extends TestCase
         $this->assertSame('9:00 PM', $content['stops'][0]['time']);
     }
 
+    public function test_hours_and_photos_share_one_web_search(): void
+    {
+        config([
+            'services.google.places_key' => null,
+            'services.anthropic.key' => 'test-anthropic-key',
+        ]);
+        $jpeg = "\xFF\xD8\xFF".str_repeat('a', 240);
+        Http::fake([
+            'nominatim.openstreetmap.org/*' => Http::response([], 200),
+            'example.com/*' => Http::response($jpeg, 200, ['Content-Type' => 'image/jpeg']),
+        ]);
+        $calls = 0;
+        $this->app->instance(AiChatClient::class, new class($calls) implements AiChatClient
+        {
+            public function __construct(private int &$calls) {}
+
+            public function chat(array $messages, bool $jsonMode = true, ?int $maxTokens = null, array $options = []): array
+            {
+                $this->calls++;
+
+                return [
+                    'places' => [[
+                        'name' => 'Quiet Bar',
+                        'hours' => 'Friday: 6 PM–2 AM',
+                        'image_url' => 'https://example.com/quiet-bar.jpg',
+                    ]],
+                ];
+            }
+        });
+
+        $content = app(PlaceListingLookup::class)->enrich([
+            'stops' => [[
+                'time' => '9:00 PM',
+                'name' => 'Quiet Bar',
+                'activity' => 'A drink',
+                'notes' => '',
+            ]],
+        ], 'Austin');
+
+        $this->assertSame(1, $calls);
+        $this->assertSame('Friday: 6 PM–2 AM', $content['stops'][0]['hours']);
+        $this->assertStringContainsString('/api/v1/place-photos/', $content['stops'][0]['photo_url']);
+    }
+
     public function test_a_stop_with_no_hours_copies_a_similar_place_in_the_city(): void
     {
         config(['services.google.places_key' => 'test-places-key']);
@@ -781,7 +827,7 @@ class PlaceListingLookupTest extends TestCase
         $this->assertSame('Friday: 6 PM–2 AM', $content['stops'][0]['hours']);
     }
 
-    public function test_a_stop_with_no_listing_reuses_hours_from_another_stop(): void
+    public function test_a_stop_does_not_copy_hours_from_a_different_place(): void
     {
         config(['services.google.places_key' => null]);
         Http::fake([
@@ -806,7 +852,97 @@ class PlaceListingLookupTest extends TestCase
             ],
         ], 'Austin');
 
-        $this->assertSame('Friday: 5 PM–12 AM', $content['stops'][1]['hours']);
+        $this->assertSame('Friday: 5 PM–12 AM', $content['stops'][0]['hours']);
+        $this->assertArrayNotHasKey('hours', $content['stops'][1]);
+    }
+
+    public function test_a_late_stop_skips_office_hours_and_uses_the_nightclub_listing(): void
+    {
+        config(['services.google.places_key' => 'test-places-key']);
+        Http::fake(function ($request) {
+            if (! str_contains($request->url(), 'searchText')) {
+                return Http::response([], 200);
+            }
+
+            return Http::response([
+                'places' => [
+                    [
+                        'displayName' => ['text' => 'The Atlanta Opera'],
+                        'businessStatus' => 'OPERATIONAL',
+                        'formattedAddress' => '1575 Northside Dr NW Unit 350, Atlanta, GA 30318, USA',
+                        'regularOpeningHours' => [
+                            'weekdayDescriptions' => [
+                                'Thursday: 9:00 AM – 5:00 PM',
+                                'Friday: 9:00 AM – 5:00 PM',
+                            ],
+                        ],
+                    ],
+                    [
+                        'displayName' => ['text' => 'Opera Atlanta'],
+                        'businessStatus' => 'OPERATIONAL',
+                        'formattedAddress' => '1150 Crescent Ave NE, Atlanta, GA 30309, USA',
+                        'regularOpeningHours' => [
+                            'weekdayDescriptions' => [
+                                'Thursday: 10:00 PM – 3:00 AM',
+                                'Friday: 10:00 PM – 3:00 AM',
+                            ],
+                        ],
+                    ],
+                ],
+            ]);
+        });
+
+        $this->travelTo('2026-11-05 18:00:00');
+
+        $content = app(PlaceListingLookup::class)->enrich([
+            'stops' => [[
+                'time' => '10:30 PM – 1:00 AM',
+                'name' => 'Opera Atlanta',
+                'activity' => 'Dancing and cocktails',
+                'notes' => '',
+            ]],
+        ], 'Atlanta');
+
+        $this->assertSame('1150 Crescent Ave NE, Atlanta, GA 30309, USA', $content['stops'][0]['address']);
+        $this->assertSame('Thursday: 10:00 PM – 3:00 AM', $content['stops'][0]['hours']);
+    }
+
+    public function test_office_hours_are_not_stuck_on_a_late_stop_when_that_is_the_only_match(): void
+    {
+        config(['services.google.places_key' => 'test-places-key']);
+        Http::fake(function ($request) {
+            if (! str_contains($request->url(), 'searchText')) {
+                return Http::response([], 200);
+            }
+
+            return Http::response([
+                'places' => [[
+                    'displayName' => ['text' => 'The Atlanta Opera'],
+                    'businessStatus' => 'OPERATIONAL',
+                    'formattedAddress' => '1575 Northside Dr NW Unit 350, Atlanta, GA 30318, USA',
+                    'regularOpeningHours' => [
+                        'weekdayDescriptions' => [
+                            'Thursday: 9:00 AM – 5:00 PM',
+                        ],
+                    ],
+                ]],
+            ]);
+        });
+
+        $this->travelTo('2026-11-05 18:00:00');
+
+        $content = app(PlaceListingLookup::class)->enrich([
+            'stops' => [[
+                'time' => '10:30 PM – 1:00 AM',
+                'name' => 'Opera Atlanta',
+                'activity' => 'Dancing and cocktails',
+                'notes' => '',
+            ]],
+        ], 'Atlanta');
+
+        $this->assertArrayNotHasKey('address', $content['stops'][0]);
+        $this->assertArrayNotHasKey('hours', $content['stops'][0]);
+        $this->assertSame('Opera Atlanta', $content['stops'][0]['name']);
     }
 
     public function test_the_night_prompt_tells_the_model_to_stay_inside_the_radius(): void
