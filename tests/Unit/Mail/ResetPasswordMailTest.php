@@ -30,14 +30,14 @@ class ResetPasswordMailTest extends TestCase
 
         $this->assertSame(MailSubject::stamp('Reset your password'), $mail->envelope()->subject);
         $this->assertSame('dterefe0@gmail.com', $mail->envelope()->to[0]->address);
-        $this->assertStringContainsString('PLNR', $html);
+        $this->assertStringContainsString('HUZA PLNR', $html);
         $this->assertStringContainsString('Choose a new password', $html);
         $this->assertStringContainsString('dterefe0@gmail.com', $html);
         $this->assertStringContainsString('482913', $html);
-        $this->assertStringContainsString('Enter this code in the PLNR app', $html);
+        $this->assertStringContainsString('Enter this code in the HUZA PLNR app', $html);
         $this->assertStringNotContainsString('/reset-password?', $html);
         $this->assertStringContainsString($theme['accent'], $html);
-        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('alt="HUZA PLNR"', $html);
         $this->assertStringContainsString('width="120"', $html);
         $this->assertStringContainsString('#F7F4F0', $html);
         $this->assertStringNotContainsString('data-motif', $html);

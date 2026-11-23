@@ -3,7 +3,7 @@
 
 We received a request to reset the password for **{{ $email }}**.
 
-Enter this code in the PLNR app, or on the website. It works once and expires in 60 minutes.
+Enter this code in the HUZA PLNR app, or on the website. It works once and expires in 60 minutes.
 
 <x-mail::panel>
 <span style="font-size: 28px; letter-spacing: 6px; font-weight: 700;">{{ $code }}</span>

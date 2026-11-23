@@ -37,8 +37,8 @@ class ItineraryStopReminderMailTest extends TestCase
 
         $html = (new ItineraryStopReminderMail($reminder))->render();
 
-        $this->assertStringContainsString('PLNR', $html);
-        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('HUZA PLNR', $html);
+        $this->assertStringContainsString('alt="HUZA PLNR"', $html);
         $this->assertStringContainsString('width="120"', $html);
         $this->assertStringContainsString('#F7F4F0', $html);
         $this->assertStringContainsString('#1A1A1A', $html);

@@ -153,7 +153,7 @@ class WeekendRecommendationService
         $response = $this->client->chat([
             [
                 'role' => 'system',
-                'content' => 'You are PLNR weekend recommender. Pick 3 to 5 real events from the provided catalog that best match the user interests for the coming Friday, Saturday, and Sunday. Include at least one event on each of those days when the catalog has one. Respond ONLY with JSON: {"recommendations":[{"event_id":number,"reason":"short why"}]}. Never invent event_id values.',
+                'content' => 'You are HUZA PLNR weekend recommender. Pick 3 to 5 real events from the provided catalog that best match the user interests for the coming Friday, Saturday, and Sunday. Include at least one event on each of those days when the catalog has one. Respond ONLY with JSON: {"recommendations":[{"event_id":number,"reason":"short why"}]}. Never invent event_id values.',
             ],
             [
                 'role' => 'user',

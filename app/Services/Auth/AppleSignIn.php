@@ -69,7 +69,7 @@ class AppleSignIn
         $resolvedName = trim((string) $name);
 
         if ($resolvedName === '') {
-            $resolvedName = 'PLNR member';
+            $resolvedName = 'HUZA PLNR member';
         }
 
         $user = DB::transaction(function () use ($sub, $resolvedEmail, $resolvedName): User {

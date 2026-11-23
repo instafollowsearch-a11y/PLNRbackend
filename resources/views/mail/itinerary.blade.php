@@ -1,5 +1,5 @@
 @component('mail::message')
-# {{ $content['title'] ?? 'Your PLNR Itinerary' }}
+# {{ $content['title'] ?? 'Your HUZA PLNR Itinerary' }}
 
 @if (!empty($content['summary']))
 {{ $content['summary'] }}

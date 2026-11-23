@@ -16,7 +16,7 @@ class HotelSuggestionService
         $decoded = $this->client->chat([
             [
                 'role' => 'system',
-                'content' => 'Return JSON with key "hotels" containing exactly 3 objects. Each object has name (string) and url (https website of that hotel). Use real hotels near the destination. Do not invent a booking link on PLNR.',
+                'content' => 'Return JSON with key "hotels" containing exactly 3 objects. Each object has name (string) and url (https website of that hotel). Use real hotels near the destination. Do not invent a booking link on HUZA PLNR.',
             ],
             [
                 'role' => 'user',

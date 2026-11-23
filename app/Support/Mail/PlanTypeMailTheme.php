@@ -99,7 +99,7 @@ final class PlanTypeMailTheme
     }
 
     /**
-     * Shared PLNR brand for account mail. Plan messages keep {@see self::for()}.
+     * Shared HUZA PLNR brand for account mail. Plan messages keep {@see self::for()}.
      *
      * @return array{
      *     slug: string,
@@ -118,7 +118,7 @@ final class PlanTypeMailTheme
     {
         return [
             'slug' => 'account',
-            'label' => 'PLNR',
+            'label' => 'HUZA PLNR',
             'accent' => '#D4622A',
             'accentSoft' => '#F5D4C0',
             'surface' => '#FFFFFF',

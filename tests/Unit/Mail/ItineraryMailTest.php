@@ -62,9 +62,9 @@ class ItineraryMailTest extends TestCase
             'Saturday Night Out in Austin · ',
             (new ItineraryMail($session, $itinerary))->envelope()->subject,
         );
-        $this->assertStringContainsString('PLNR', $html);
+        $this->assertStringContainsString('HUZA PLNR', $html);
         $this->assertStringContainsString('<img', $html);
-        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('alt="HUZA PLNR"', $html);
         $this->assertStringContainsString('width="120"', $html);
         $this->assertStringContainsString('header-card', $html);
         $this->assertStringContainsString('bgcolor="#ffffff"', $html);
@@ -87,7 +87,7 @@ class ItineraryMailTest extends TestCase
         $this->assertStringContainsString('href="https://play.google.com/store/apps/details?id=app.plnr"', $html);
         $this->assertStringContainsString('Download on the App Store', $html);
         $this->assertStringContainsString('Get it on Google Play', $html);
-        $this->assertStringNotContainsString('The full plan stays on PLNR.', $html);
+        $this->assertStringNotContainsString('The full plan stays on HUZA PLNR.', $html);
         $this->assertStringContainsString('/plan/night_out/itinerary?session='.$session->uuid, $html);
         $this->assertStringNotContainsString('Blue Note Bar', $html);
         $this->assertStringNotContainsString('Harbor Jazz Club', $html);
@@ -156,13 +156,13 @@ class ItineraryMailTest extends TestCase
         $this->assertStringContainsString('7 Days in Barcelona', $html);
         $this->assertStringContainsString('Vacation', $html);
         $this->assertStringContainsString('View your plans', $html);
-        $this->assertStringNotContainsString('The full plan stays on PLNR.', $html);
+        $this->assertStringNotContainsString('The full plan stays on HUZA PLNR.', $html);
         $this->assertStringContainsString('/plan/vacation/itinerary?session='.$session->uuid, $html);
         $this->assertStringNotContainsString('Gothic Quarter', $html);
         $this->assertStringNotContainsString('Sagrada Familia', $html);
         $this->assertStringContainsString($theme['accent'], $html);
         $this->assertStringContainsString('button-vacation', $html);
-        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('alt="HUZA PLNR"', $html);
         $this->assertStringContainsString('width="120"', $html);
         $this->assertStringNotContainsString('data-motif', $html);
         $this->assertStringNotContainsString('margin-top:-28px', $html);

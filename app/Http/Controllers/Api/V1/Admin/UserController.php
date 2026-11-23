@@ -85,7 +85,7 @@ class UserController extends Controller
 
         $result = $push->deliverToUser(
             $user,
-            'PLNR test',
+            'HUZA PLNR test',
             'If you can read this, push is working.',
             ['screen' => 'test'],
         );

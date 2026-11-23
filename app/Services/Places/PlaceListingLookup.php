@@ -312,7 +312,7 @@ class PlaceListingLookup
                     $pool->as((string) $index)
                         ->withHeaders([
                             'Accept' => 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-                            'User-Agent' => 'PLNR/1.0',
+                            'User-Agent' => 'HUZA PLNR/1.0',
                         ])
                         ->withOptions(['allow_redirects' => false])
                         ->timeout(6)

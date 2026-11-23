@@ -201,7 +201,7 @@ class CityListingInventory
                     [
                         'role' => 'system',
                         'content' => <<<'PROMPT'
-You are PLNR event scout. You MUST use web search. Find real, currently listed local events in the user's city that fall inside the date window.
+You are HUZA PLNR event scout. You MUST use web search. Find real, currently listed local events in the user's city that fall inside the date window.
 
 Fire up to two independent searches in the same turn (in parallel, not one after the other):
 1) city + date window + interests + events/tickets

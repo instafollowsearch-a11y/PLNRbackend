@@ -29,7 +29,7 @@ class SharedPlanItineraryMail extends Mailable
     {
         $settings = app(AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
-        $title = $this->itinerary->content['title'] ?? 'Shared PLNR plan';
+        $title = $this->itinerary->content['title'] ?? 'Shared HUZA PLNR plan';
         $subject = MailSubject::stamp(($this->sharedBy?->name ?? 'A friend').' shared: '.$title);
 
         if ($fromAddress) {

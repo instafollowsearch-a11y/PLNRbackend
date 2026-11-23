@@ -50,7 +50,7 @@ class SubscriptionService
                             'interval' => 'month',
                         ],
                         'product_data' => [
-                            'name' => 'PLNR Pro',
+                            'name' => 'HUZA PLNR Pro',
                             'description' => 'Weekend recommendations and plan sharing',
                         ],
                     ],

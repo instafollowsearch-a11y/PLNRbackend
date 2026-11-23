@@ -35,8 +35,8 @@ class BookingReminderMailTest extends TestCase
 
         $html = (new BookingReminderMail($booking))->render();
 
-        $this->assertStringContainsString('PLNR', $html);
-        $this->assertStringContainsString('alt="PLNR"', $html);
+        $this->assertStringContainsString('HUZA PLNR', $html);
+        $this->assertStringContainsString('alt="HUZA PLNR"', $html);
         $this->assertStringContainsString('width="120"', $html);
         $this->assertStringContainsString('Denver weekend drive', $html);
         $this->assertStringContainsString('Alex', $html);

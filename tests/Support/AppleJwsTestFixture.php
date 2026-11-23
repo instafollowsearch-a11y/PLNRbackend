@@ -28,8 +28,8 @@ final class AppleJwsTestFixture
         }
 
         $csr = openssl_csr_new([
-            'commonName' => 'PLNR Test Apple Root',
-            'organizationName' => 'PLNR Tests',
+            'commonName' => 'HUZA PLNR Test Apple Root',
+            'organizationName' => 'HUZA PLNR Tests',
             'countryName' => 'US',
         ], $key, ['digest_alg' => 'sha256']);
         if ($csr === false) {

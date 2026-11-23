@@ -47,7 +47,7 @@ class AdminTestNotificationApiTest extends TestCase
             $message = $request->data()[0] ?? [];
 
             return $request->url() === 'https://exp.host/--/api/v2/push/send'
-                && ($message['title'] ?? null) === 'PLNR test'
+                && ($message['title'] ?? null) === 'HUZA PLNR test'
                 && ($message['data']['screen'] ?? null) === 'test'
                 && ($message['channelId'] ?? null) === 'default';
         });

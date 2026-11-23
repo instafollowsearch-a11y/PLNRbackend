@@ -3,7 +3,7 @@
 
 # {{ ($share->inviter?->name ?? 'Someone') }} shared a plan with you
 
-Open the invite to view the plan together. If you already have a PLNR account, sign in with **{{ $share->invitee_email }}**. Otherwise create an account using that email.
+Open the invite to view the plan together. If you already have a HUZA PLNR account, sign in with **{{ $share->invitee_email }}**. Otherwise create an account using that email.
 
 @if (!empty($share->planSession?->planType?->label) || !empty($share->planSession?->city))
 @if (!empty($share->planSession?->planType?->label))

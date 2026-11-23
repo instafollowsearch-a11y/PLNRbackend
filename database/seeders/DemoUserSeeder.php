@@ -13,7 +13,7 @@ class DemoUserSeeder extends Seeder
         User::query()->updateOrCreate(
             ['email' => 'admin@plnr.test'],
             [
-                'name' => 'PLNR Admin',
+                'name' => 'HUZA PLNR Admin',
                 'password' => Hash::make('password'),
                 'role' => User::ROLE_ADMIN,
                 'city' => 'Austin',
@@ -23,7 +23,7 @@ class DemoUserSeeder extends Seeder
         User::query()->updateOrCreate(
             ['email' => 'user@plnr.test'],
             [
-                'name' => 'PLNR User',
+                'name' => 'HUZA PLNR User',
                 'password' => Hash::make('password'),
                 'role' => User::ROLE_USER,
                 'city' => 'Austin',

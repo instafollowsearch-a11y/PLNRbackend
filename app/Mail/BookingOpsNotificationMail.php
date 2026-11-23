@@ -20,7 +20,7 @@ class BookingOpsNotificationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: MailSubject::stamp('New PLNR booking: '.$this->booking->title),
+            subject: MailSubject::stamp('New HUZA PLNR booking: '.$this->booking->title),
         );
     }
 

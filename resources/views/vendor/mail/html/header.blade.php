@@ -16,9 +16,9 @@
         : null;
 @endphp
 @if ($plnrLogo)
-<img src="{{ $plnrLogo }}" class="logo" alt="PLNR" width="120" height="44" style="display:block;border:0;outline:none;width:120px;height:44px;max-width:120px;max-height:44px;">
+<img src="{{ $plnrLogo }}" class="logo" alt="HUZA PLNR" width="120" height="44" style="display:block;border:0;outline:none;width:120px;height:44px;max-width:120px;max-height:44px;">
 @else
-PLNR
+HUZA PLNR
 @endif
 </a>
 </td>

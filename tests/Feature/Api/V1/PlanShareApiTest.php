@@ -264,7 +264,7 @@ class PlanShareApiTest extends TestCase
         ]);
         $this->assertCount(1, $sms->messages);
         $this->assertSame('+15551234567', $sms->messages[0]['to']);
-        $this->assertStringContainsString('Alex invited you to a plan on PLNR.', $sms->messages[0]['body']);
+        $this->assertStringContainsString('Alex invited you to a plan on HUZA PLNR.', $sms->messages[0]['body']);
         $this->assertStringContainsString('https://myplnr.app/invite/'.$response->json('data.share.token'), $sms->messages[0]['body']);
         $this->assertStringContainsString('Reply STOP to opt out.', $sms->messages[0]['body']);
         Mail::assertSent(PlanShareInviteMail::class);

@@ -34,7 +34,7 @@ BLADE, ['theme' => $theme]);
             $this->assertStringContainsString('View your plans', $inlined, $slug);
             $this->assertStringContainsString('https://myplnr.app/plans', $inlined, $slug);
             $this->assertStringContainsString($theme['accent'], $inlined, $slug);
-            $this->assertStringContainsString('PLNR', $html, $slug);
+            $this->assertStringContainsString('HUZA PLNR', $html, $slug);
             $this->assertStringNotContainsString('data-motif', $html, $slug);
             $this->assertStringNotContainsString('margin-top:-28px', $html, $slug);
             $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html, $slug);

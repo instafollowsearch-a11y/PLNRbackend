@@ -120,7 +120,7 @@ return [
     | Markdown Mail Settings
     |--------------------------------------------------------------------------
     |
-    | PLNR mail uses Laravel's published mail components. Colors live in the
+    | HUZA PLNR mail uses Laravel's published mail components. Colors live in the
     | plnr theme; plan-type accents are button colors in that stylesheet.
     |
     */

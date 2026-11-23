@@ -114,6 +114,6 @@ class GoogleSignIn
 
         $given = trim((string) ($payload['given_name'] ?? ''));
 
-        return $given !== '' ? $given : 'PLNR member';
+        return $given !== '' ? $given : 'HUZA PLNR member';
     }
 }

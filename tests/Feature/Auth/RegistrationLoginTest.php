@@ -13,7 +13,7 @@ class RegistrationLoginTest extends TestCase
     public function test_user_can_register_login_fetch_user_and_logout(): void
     {
         $registerResponse = $this->postJson('/api/v1/auth/register', [
-            'name' => 'PLNR User',
+            'name' => 'HUZA PLNR User',
             'email' => 'user@plnr.test',
             'password' => 'password123',
             'password_confirmation' => 'password123',

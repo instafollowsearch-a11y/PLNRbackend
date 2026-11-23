@@ -1,7 +1,7 @@
 @component('mail::message')
 {{ $theme['label'] }}
 
-# {{ $content['title'] ?? 'Shared PLNR plan' }}
+# {{ $content['title'] ?? 'Shared HUZA PLNR plan' }}
 
 {{ $sharedBy?->name ?? 'A friend' }} shared a plan with you.
 

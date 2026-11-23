@@ -222,7 +222,7 @@ class PlanSessionController extends Controller
                         'generation_status' => null,
                         'generation_error' => null,
                     ]);
-                    $this->notifyReady($planSession, 'Your ideas are ready', 'Open PLNR to pick a plan.');
+                    $this->notifyReady($planSession, 'Your ideas are ready', 'Open HUZA PLNR to pick a plan.');
                 } catch (Throwable $exception) {
                     $this->markGenerationFailed(
                         $planSession,
@@ -294,7 +294,7 @@ class PlanSessionController extends Controller
                         'generation_status' => null,
                         'generation_error' => null,
                     ]);
-                    $this->notifyReady($planSession, 'Your ideas are ready', 'Open PLNR to pick a plan.');
+                    $this->notifyReady($planSession, 'Your ideas are ready', 'Open HUZA PLNR to pick a plan.');
                 } catch (Throwable $exception) {
                     $planSession->removeLastRefinementMessage();
                     $this->markGenerationFailed($planSession, 'plan_session.refine_failed', $exception, 'Unable to refine suggestions. Please try again.');
@@ -449,7 +449,7 @@ class PlanSessionController extends Controller
                         'generation_status' => null,
                         'generation_error' => null,
                     ]);
-                    $this->notifyReady($planSession, 'Your plan is ready', 'The full plan is waiting in PLNR.');
+                    $this->notifyReady($planSession, 'Your plan is ready', 'The full plan is waiting in HUZA PLNR.');
                 } catch (Throwable $exception) {
                     $this->markGenerationFailed($planSession, 'plan_session.itinerary_failed', $exception, 'Unable to generate itinerary. Please try again.');
 

@@ -30,7 +30,7 @@ class PlanShareInviteMail extends Mailable
         $inviter = $this->share->inviter?->name ?? 'Someone';
         $settings = app(AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
-        $subject = MailSubject::stamp($inviter.' shared a PLNR plan with you');
+        $subject = MailSubject::stamp($inviter.' shared a HUZA PLNR plan with you');
 
         if ($fromAddress) {
             return new Envelope(

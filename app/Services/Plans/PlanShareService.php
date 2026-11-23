@@ -207,7 +207,7 @@ class PlanShareService
         $name = trim((string) $inviter->name);
         $who = $name !== '' ? $name : 'Someone';
         $url = $urls['web'] ?? $urls['app'];
-        $body = "{$who} invited you to a plan on PLNR. View it: {$url} Reply STOP to opt out.";
+        $body = "{$who} invited you to a plan on HUZA PLNR. View it: {$url} Reply STOP to opt out.";
 
         try {
             $this->inviteSms->send($phone, $body);

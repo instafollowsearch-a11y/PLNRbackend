@@ -110,7 +110,7 @@ return [
 
     'nominatim' => [
         'url' => env('NOMINATIM_URL', 'https://nominatim.openstreetmap.org'),
-        'user_agent' => env('NOMINATIM_USER_AGENT', 'PLNR/1.0 (https://plnr.app)'),
+        'user_agent' => env('NOMINATIM_USER_AGENT', 'HUZA PLNR/1.0 (https://plnr.app)'),
     ],
 
     'google' => [

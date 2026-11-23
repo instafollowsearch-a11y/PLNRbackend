@@ -25,7 +25,7 @@ class ItineraryMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $title = MailSubject::stamp($this->itinerary->content['title'] ?? 'Your PLNR Itinerary');
+        $title = MailSubject::stamp($this->itinerary->content['title'] ?? 'Your HUZA PLNR Itinerary');
         $settings = app(AppSettings::class);
         $fromAddress = $settings->mailFromAddress();
 

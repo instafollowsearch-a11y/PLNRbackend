@@ -1,7 +1,7 @@
 @component('mail::message')
 {{ $theme['label'] }}
 
-# {{ $content['title'] ?? 'Your PLNR plan' }}
+# {{ $content['title'] ?? 'Your HUZA PLNR plan' }}
 
 Times are ranges, not exact times. Places and plans can be off. Double-check before you go.
 

@@ -19,5 +19,5 @@ A new booking needs fulfillment.
 **External:** [{{ $metadata['external_url'] }}]({{ $metadata['external_url'] }})
 @endif
 
-Sent to the PLNR booking desk.
+Sent to the HUZA PLNR booking desk.
 @endcomponent
